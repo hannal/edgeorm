@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "edgeorm"
+version = "0.1.0"
+description = ""
+authors = ["hannal <kay@hannal.net>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+edgedb = "^1.3.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.3.1"
+pytest-asyncio = "^0.21.0"
+pytest-env = "^0.8.1"
+pytest-xdist = "^3.3.0"
+pytest-cov = "^4.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
