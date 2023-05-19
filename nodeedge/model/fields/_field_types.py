@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 import json
 
@@ -19,6 +20,7 @@ __all__ = [
     "Int16",
     "Int32",
     "Int64",
+    "BigInt",
 ]
 
 from nodeedge.types import BaseFilterable
@@ -136,3 +138,27 @@ class Int64(ConstrainedInt, BaseField):
         result: Int64 = cls(value)
         result._python_value = int(result)
         return result
+
+
+class BigInt(ConstrainedStr, BaseField):  # type: ignore
+    regex = re.compile(r"((?P<value>[0-9]+)(e\+(?P<exponent>[0-9]+))?)n")
+
+    @classmethod
+    def validate(cls, value: str) -> Self:
+        matched = cls.regex.fullmatch(value)
+        if not matched:
+            raise ValueError("invalid BigInt format")
+
+        matched_dict = matched.groupdict()
+        converted: dict[str, int]
+        if not any(matched_dict.values()):
+            converted = {"value": 0, "exponent": 0}
+        else:
+            converted = {_k: int(_v) if _v else 0 for _k, _v in matched_dict.items()}
+
+        result = cls(super().validate(value))
+        result._python_value = int(float(f"{converted['value']}e{converted['exponent']}"))
+        return result
+
+    def as_jsonable_value(self):
+        return json.dumps(self)

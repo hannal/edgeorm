@@ -69,3 +69,18 @@ def test_invalid_int(field_type: Type[fields.BaseField], value: Any):
 
     with pytest.raises(ValidationError):
         SampleModel(field=value)
+
+
+def test_bigint():
+    class SampleModel(Model):
+        field: fields.BigInt
+
+    expected_db_type = "bigint"
+    expected_python_value = int(1e100)
+    value = "1e+100n"
+    model = SampleModel(field=value)
+    assert model.field == value
+    assert model.field.as_db_type() == expected_db_type
+    assert model.field.as_db_value() == value
+    assert model.field.as_python_value() == expected_python_value
+    assert model.field.as_jsonable_value() == f'"{value}"'
