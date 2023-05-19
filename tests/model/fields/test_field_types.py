@@ -1,3 +1,4 @@
+import datetime
 from typing import Type, Any
 from decimal import Decimal
 
@@ -7,7 +8,7 @@ from pydantic.validators import BOOL_TRUE, BOOL_FALSE
 
 from nodeedge import GlobalConfiguration
 from nodeedge.model import fields, Model
-
+from nodeedge.utils.datetime import make_aware
 
 is_backend_edgedb = GlobalConfiguration.is_edgedb_backend()
 
@@ -173,3 +174,74 @@ def test_bool(value, expected):
     assert model.field.as_db_value() == expected
     assert model.field.as_python_value() == expected
     assert model.field.as_jsonable_value() == str(expected).lower()
+
+
+_today = datetime.date.today()
+_naive_now = datetime.datetime.now()
+_aware_now = make_aware(datetime.datetime.utcnow())
+
+
+@skip_if_not_edgedb
+@pytest.mark.parametrize(
+    ["field_type", "value", "expected_type", "expected_db_type", "expected_json_value"],
+    [
+        [fields.Date, _today.isoformat(), datetime.date, "cal::local_date", _today.isoformat()],
+        [fields.Date, _today.isoformat(), datetime.date, "cal::local_date", _today.isoformat()],
+        [
+            fields.Time,
+            _naive_now.time().isoformat(),
+            datetime.time,
+            "cal::local_time",
+            _naive_now.time().isoformat(),
+        ],
+        [
+            fields.Time,
+            _naive_now.time(),
+            datetime.time,
+            "cal::local_time",
+            _naive_now.time().isoformat(),
+        ],
+        [
+            fields.NaiveDateTime,
+            _naive_now.isoformat(),
+            datetime.datetime,
+            "cal::local_datetime",
+            _naive_now.isoformat(),
+        ],
+        [
+            fields.NaiveDateTime,
+            _naive_now,
+            datetime.datetime,
+            "cal::local_datetime",
+            _naive_now.isoformat(),
+        ],
+        [
+            fields.AwareDateTime,
+            _aware_now.isoformat(),
+            datetime.datetime,
+            "datetime",
+            _aware_now.isoformat(),
+        ],
+        [
+            fields.AwareDateTime,
+            _aware_now,
+            datetime.datetime,
+            "datetime",
+            _aware_now.isoformat(),
+        ],
+    ],
+)
+def test_datetime(
+    field_type: Type[fields.BaseField], value, expected_type, expected_db_type, expected_json_value
+):
+    class SampleModel(Model):
+        field: field_type
+
+    model = SampleModel(field=value)
+
+    assert isinstance(model.field.as_python_value(), expected_type)
+    expected_db_value = model.field.as_python_value()
+    assert model.field.as_db_type() == expected_db_type
+    assert model.field.as_db_value() == expected_db_value
+    assert model.field.as_python_value() == expected_db_value
+    assert model.field.as_jsonable_value() == expected_json_value

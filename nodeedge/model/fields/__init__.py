@@ -9,6 +9,10 @@ from ._field_types import (
     Float64,
     Decimal,
     Bool,
+    Date,
+    Time,
+    NaiveDateTime,
+    AwareDateTime,
 )
 from ._model_field import ModelField
 
@@ -24,6 +28,10 @@ __all__ = [
     "Float64",
     "Decimal",
     "Bool",
+    "Date",
+    "Time",
+    "NaiveDateTime",
+    "AwareDateTime",
     #
     # _model_field
     "ModelField",

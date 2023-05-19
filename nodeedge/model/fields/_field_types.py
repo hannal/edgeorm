@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Union, Optional
 import json
 from decimal import Decimal as _Decimal
+import datetime
 
 from typing_extensions import Self
+import pydantic
+from pydantic.datetime_parse import StrBytesIntFloat, parse_date, parse_datetime, parse_time
 from pydantic.types import (
     ConstrainedStr,
     ConstrainedInt,
     ConstrainedFloat,
     ConstrainedDecimal,
+    ConstrainedDate,
+    ConstrainedNumberMeta,
 )
+from pydantic.utils import update_not_none
 from pydantic.validators import (
     bool_validator,
     list_validator,
@@ -35,10 +41,14 @@ __all__ = [
     "Float64",
     "Decimal",
     "Bool",
+    "Date",
+    "Time",
+    "NaiveDateTime",
+    "AwareDateTime",
 ]
 
 from nodeedge.types import BaseFilterable
-
+from nodeedge.utils.datetime import is_aware, make_naive, is_naive, make_aware
 
 _backend = BackendLoader(GlobalConfiguration.BACKEND)
 _field_type_map = _backend.field_type_map
@@ -234,3 +244,166 @@ class Bool(int, BaseField):
         result = cls(bool_validator(value))
         result._python_value = True if result else False
         return result
+
+
+class Date(ConstrainedDate, BaseField):
+    @classmethod
+    def __get_validators__(cls):
+        yield parse_date
+        yield number_size_validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: Union[datetime.date, StrBytesIntFloat]) -> Self:
+        if not isinstance(value, datetime.date):
+            value = parse_date(value)
+        result = cls(value.year, value.month, value.day)
+        result._python_value = value
+        return result
+
+    @classmethod
+    def today(cls) -> Self:
+        return cls.validate(datetime.date.today())
+
+    def as_jsonable_value(self):
+        return self.as_python_value().isoformat()
+
+
+class Time(datetime.time, BaseField, metaclass=ConstrainedNumberMeta):
+    gt: Optional[datetime.time] = None
+    ge: Optional[datetime.time] = None
+    lt: Optional[datetime.time] = None
+    le: Optional[datetime.time] = None
+
+    @classmethod
+    def __modify_schema__(cls, field_schema: dict[str, Any]) -> None:
+        update_not_none(
+            field_schema,
+            exclusiveMinimum=cls.gt,
+            exclusiveMaximum=cls.lt,
+            minimum=cls.ge,
+            maximum=cls.le,
+        )
+
+    @classmethod
+    def __get_validators__(cls):
+        yield parse_time
+        yield number_size_validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: Union[datetime.time, StrBytesIntFloat]) -> Self:
+        if not isinstance(value, datetime.time):
+            value = parse_time(value)
+        result = cls(
+            value.hour, value.minute, value.second, value.microsecond, value.tzinfo, fold=value.fold
+        )
+        result._python_value = value
+        return result
+
+    @classmethod
+    def now(cls):
+        return cls.validate(datetime.datetime.utcnow().time())
+
+    def as_jsonable_value(self):
+        return self.as_python_value().isoformat()
+
+
+class NaiveDateTime(datetime.datetime, BaseField, metaclass=ConstrainedNumberMeta):
+    gt: Optional[datetime.datetime] = None
+    ge: Optional[datetime.datetime] = None
+    lt: Optional[datetime.datetime] = None
+    le: Optional[datetime.datetime] = None
+
+    @classmethod
+    def __modify_schema__(cls, field_schema: dict[str, Any]) -> None:
+        update_not_none(
+            field_schema,
+            exclusiveMinimum=cls.gt,
+            exclusiveMaximum=cls.lt,
+            minimum=cls.ge,
+            maximum=cls.le,
+        )
+
+    @classmethod
+    def __get_validators__(cls):
+        yield parse_datetime
+        yield number_size_validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: Union[datetime.datetime, StrBytesIntFloat]) -> Self:
+        if not isinstance(value, datetime.datetime):
+            value = parse_datetime(value)
+        if is_aware(value):
+            raise ValueError("datetime is off-set awarded")
+        result = cls(
+            value.year,
+            value.month,
+            value.day,
+            value.hour,
+            value.minute,
+            value.second,
+            value.microsecond,
+            value.tzinfo,
+            fold=value.fold,
+        )
+        result._python_value = value
+        return result
+
+    @classmethod
+    def now(cls, tz: Optional[datetime.tzinfo] = None) -> Self:
+        return cls.validate(make_naive(datetime.datetime.now(tz)))
+
+    def as_jsonable_value(self):
+        return self.as_python_value().isoformat()
+
+
+class AwareDateTime(datetime.datetime, BaseField, metaclass=ConstrainedNumberMeta):
+    gt: Optional[datetime.datetime] = None
+    ge: Optional[datetime.datetime] = None
+    lt: Optional[datetime.datetime] = None
+    le: Optional[datetime.datetime] = None
+
+    @classmethod
+    def __modify_schema__(cls, field_schema: dict[str, Any]) -> None:
+        update_not_none(
+            field_schema,
+            exclusiveMinimum=cls.gt,
+            exclusiveMaximum=cls.lt,
+            minimum=cls.ge,
+            maximum=cls.le,
+        )
+
+    @classmethod
+    def __get_validators__(cls):
+        yield parse_datetime
+        yield number_size_validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: Union[datetime.datetime, StrBytesIntFloat]) -> Self:
+        if not isinstance(value, datetime.datetime):
+            value = parse_datetime(value)
+        if is_naive(value):
+            raise ValueError("datetime is not off-set awarded")
+        result = cls(
+            value.year,
+            value.month,
+            value.day,
+            value.hour,
+            value.minute,
+            value.second,
+            value.microsecond,
+            value.tzinfo,
+            fold=value.fold,
+        )
+        result._python_value = value
+        return result
+
+    @classmethod
+    def now(cls, tz: Optional[datetime.tzinfo] = None) -> Self:
+        return cls.validate(make_aware(datetime.datetime.now(tz)))
+
+    def as_jsonable_value(self):
+        return self.as_python_value().isoformat()
