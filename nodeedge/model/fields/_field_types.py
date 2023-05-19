@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import abc
+import uuid
 import re
-from typing import Any, Union, Optional, TypeVar, Generic
+from typing import Any, Union, Optional, TypeVar, Generic, Type
 import json
 from decimal import Decimal as _Decimal
 import datetime
@@ -11,6 +13,10 @@ from edgedb import DateDuration as _DateDuration
 from edgedb import RelativeDuration as _RelativeDuration
 from typing_extensions import Self
 from pydantic.datetime_parse import StrBytesIntFloat, parse_date, parse_datetime, parse_time
+from pydantic.types import UUID1 as _UUID1
+from pydantic.types import UUID3 as _UUID3
+from pydantic.types import UUID4 as _UUID4
+from pydantic.types import UUID5 as _UUID5
 from pydantic.types import (
     ConstrainedStr,
     ConstrainedInt,
@@ -51,6 +57,10 @@ __all__ = [
     "RelativeDuration",
     "DateDuration",
     "Json",
+    "UUID1",
+    "UUID3",
+    "UUID4",
+    "UUID5",
 ]
 
 from nodeedge.types import BaseFilterable, LateInt
@@ -81,7 +91,19 @@ class _PythonValueMixin(Generic[_PythonValue_T]):
         return self._python_value
 
 
-class BaseField(BaseFilterable, _PythonValueMixin):
+_DbValue_T = TypeVar("_DbValue_T")
+
+
+class _DbValueMixin(Generic[_DbValue_T]):
+    _db_value: Union[_DbValue_T, EllipsisType] = ...
+
+    def as_db_value(self) -> _DbValue_T:
+        if self._db_value is ...:
+            return self
+        return self._db_value
+
+
+class BaseField(BaseFilterable, _PythonValueMixin, _DbValueMixin):
     """Model을 정의할 때 사용하는 model field type의 base."""
 
     _backend: str = _backend
@@ -89,7 +111,6 @@ class BaseField(BaseFilterable, _PythonValueMixin):
 
     _db_link_type = None
     _db_field_type = None
-    _db_value: Any = ...
 
     @classmethod
     def validate(cls, *args, **kwargs):
@@ -111,11 +132,6 @@ class BaseField(BaseFilterable, _PythonValueMixin):
     @classmethod
     def as_db_type(cls):
         return cls._db_field_type or getattr(cls._field_type_map, cls.__name__)
-
-    def as_db_value(self):
-        if self._db_value is ...:
-            return self
-        return self._db_value
 
     def as_jsonable_value(self):
         if self._python_value is ...:
@@ -529,3 +545,47 @@ class Json(ConstrainedStr, BaseField):
 
     def as_jsonable_value(self):
         return self.data
+
+
+class BaseUUIDField(BaseField, _PythonValueMixin[uuid.UUID], _DbValueMixin[str]):
+    @classmethod
+    def validate(cls: Type[uuid.UUID], value: str | uuid.UUID):
+        if isinstance(value, uuid.UUID):
+            result = cls(value.hex)
+        else:
+            result = cls(value)
+
+        return result
+
+    def as_python_value(self) -> _PythonValue_T:
+        return self
+
+    def as_db_value(self) -> _DbValue_T:
+        return str(self.as_python_value())
+
+    def as_jsonable_value(self):
+        return self.as_db_value()
+
+
+class UUID1(_UUID1, BaseUUIDField):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+
+class UUID3(_UUID3, BaseUUIDField):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+
+class UUID4(_UUID4, BaseUUIDField):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+
+class UUID5(_UUID5, BaseUUIDField):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate

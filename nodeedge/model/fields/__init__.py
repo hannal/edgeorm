@@ -17,6 +17,10 @@ from ._field_types import (
     RelativeDuration,
     DateDuration,
     Json,
+    UUID1,
+    UUID3,
+    UUID4,
+    UUID5,
 )
 from ._model_field import ModelField
 
@@ -40,6 +44,10 @@ __all__ = [
     "RelativeDuration",
     "DateDuration",
     "Json",
+    "UUID1",
+    "UUID3",
+    "UUID4",
+    "UUID5",
     #
     # _model_field
     "ModelField",

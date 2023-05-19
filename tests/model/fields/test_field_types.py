@@ -1,7 +1,8 @@
 import datetime
+import json
+import uuid
 from typing import Type, Any
 from decimal import Decimal
-import json
 
 import pytest
 from pydantic import ValidationError
@@ -328,6 +329,7 @@ def test_date_duration(value, expected_units: DateDurationUnit):
     assert model.field.as_jsonable_value() == value
 
 
+@skip_if_not_edgedb
 def test_json():
     class SampleModel(Model):
         field: fields.Json
@@ -342,3 +344,23 @@ def test_json():
     assert isinstance(model.field.as_python_value(), str)
     assert model.field.data == jsonable_value
     assert model.field.as_jsonable_value() == jsonable_value
+
+
+@skip_if_not_edgedb
+@pytest.mark.parametrize(
+    ["field_type", "value", "expected_db_type"],
+    [
+        [fields.UUID1, uuid.uuid1(clock_seq=123), "uuid"],
+        [fields.UUID3, uuid.uuid3(uuid.NAMESPACE_DNS, "nodeedge"), "uuid"],
+        [fields.UUID4, uuid.uuid4(), "uuid"],
+        [fields.UUID5, uuid.uuid5(uuid.NAMESPACE_DNS, "nodeedge"), "uuid"],
+    ],
+)
+def test_uuids(field_type: Type[fields.BaseField], value, expected_db_type):
+    class SampleModel(Model):
+        field: field_type
+
+    model = SampleModel(field=value)
+    assert model.field == value
+    assert model.field.as_db_type() == expected_db_type
+    assert model.field.as_db_value() == str(value)
