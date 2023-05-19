@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Union
+from typing import Any
 import json
 
 from typing_extensions import Self
 from pydantic.types import (
     ConstrainedStr,
+    ConstrainedInt,
 )
 
 from nodeedge import GlobalConfiguration
@@ -15,6 +16,9 @@ from nodeedge.backends.base import FieldTypeMap
 __all__ = [
     "BaseField",
     "Str",
+    "Int16",
+    "Int32",
+    "Int64",
 ]
 
 from nodeedge.types import BaseFilterable
@@ -35,18 +39,21 @@ class BaseField(BaseFilterable):
     _db_value: Any = ...
     _python_value: Any = ...
 
-    def __get__(self, instance, owner: Union[Any, None] = None):
-        if not owner:
-            raise TypeError("owner is not set")
+    @classmethod
+    def validate(cls, *args, **kwargs):
+        for validator in cls.get_validators():
+            validator(*args, **kwargs)
 
-        if instance is None:
-            return self
-        return instance
+        return cls(*args, **kwargs)
 
     @classmethod
     def get_validators(cls):
-        for validator in cls.__get_validators__():  # type: ignore
+        for validator in cls.__get_validators__():
             yield validator
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
 
     @classmethod
     def as_db_link_type(cls):
@@ -69,15 +76,63 @@ class BaseField(BaseFilterable):
     def as_jsonable_value(self):
         if self._python_value is ...:
             raise ValueError(f"value is not set: {self}")
-        return self.as_python_value()
+        return json.dumps(self.as_python_value())
 
 
-class Str(ConstrainedStr, BaseField):  # type: ignore
+class Str(ConstrainedStr, BaseField):
     @classmethod
     def validate(cls, value: str) -> Self:
-        result: Str = cls(super().validate(value))
+        result = cls(super().validate(value))
         result._python_value = str(result)
         return result
 
-    def as_jsonable_value(self):
-        return json.dumps(self.as_python_value())
+
+class Int16(ConstrainedInt, BaseField):
+    ge = -32_768
+    le = 32_767
+
+    @classmethod
+    def __get_validators__(cls):
+        for validator in super().__get_validators__():
+            yield validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: int) -> Self:
+        result = cls(value)
+        result._python_value = int(result)
+        return result
+
+
+class Int32(ConstrainedInt, BaseField):
+    ge = -2_147_483_648
+    le = 2_147_483_647
+
+    @classmethod
+    def __get_validators__(cls):
+        for validator in super().__get_validators__():
+            yield validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: int) -> Self:
+        result: Int32 = cls(value)
+        result._python_value = int(result)
+        return result
+
+
+class Int64(ConstrainedInt, BaseField):
+    ge = -9_223_372_036_854_775_808
+    le = 9_223_372_036_854_775_807
+
+    @classmethod
+    def __get_validators__(cls):
+        for validator in super().__get_validators__():
+            yield validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: int) -> Self:
+        result: Int64 = cls(value)
+        result._python_value = int(result)
+        return result
