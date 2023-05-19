@@ -21,6 +21,7 @@ from ._field_types import (
     UUID3,
     UUID4,
     UUID5,
+    Bytes,
 )
 from ._model_field import ModelField
 
@@ -48,6 +49,7 @@ __all__ = [
     "UUID3",
     "UUID4",
     "UUID5",
+    "Bytes",
     #
     # _model_field
     "ModelField",

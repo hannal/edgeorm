@@ -364,3 +364,16 @@ def test_uuids(field_type: Type[fields.BaseField], value, expected_db_type):
     assert model.field == value
     assert model.field.as_db_type() == expected_db_type
     assert model.field.as_db_value() == str(value)
+
+
+@skip_if_not_edgedb
+def test_bytes():
+    class SampleModel(Model):
+        field: fields.Bytes
+
+    value = "asdf"
+    model = SampleModel(field=value)
+    assert model.field.as_db_type() == "bytes"
+    assert isinstance(model.field, bytes)
+    assert isinstance(model.field.as_python_value(), bytes)
+    assert isinstance(model.field.as_db_value(), bytes)

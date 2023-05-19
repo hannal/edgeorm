@@ -24,6 +24,7 @@ from pydantic.types import (
     ConstrainedDecimal,
     ConstrainedDate,
     ConstrainedNumberMeta,
+    ConstrainedBytes,
 )
 from pydantic.utils import update_not_none
 from pydantic.validators import (
@@ -61,6 +62,7 @@ __all__ = [
     "UUID3",
     "UUID4",
     "UUID5",
+    "Bytes",
 ]
 
 from nodeedge.types import BaseFilterable, LateInt
@@ -589,3 +591,19 @@ class UUID5(_UUID5, BaseUUIDField):
     @classmethod
     def __get_validators__(cls):
         yield cls.validate
+
+
+class Bytes(ConstrainedBytes, BaseField):
+    @classmethod
+    def __get_validators__(cls):
+        for validator in super().__get_validators__():
+            yield validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: Any) -> Self:
+        result = cls(value)
+        return result
+
+    def as_jsonable_value(self):
+        return self.decode()
