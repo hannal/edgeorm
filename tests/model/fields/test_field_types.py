@@ -71,6 +71,7 @@ def test_invalid_int(field_type: Type[fields.BaseField], value: Any):
         SampleModel(field=value)
 
 
+@skip_if_not_edgedb
 def test_bigint():
     class SampleModel(Model):
         field: fields.BigInt
@@ -84,3 +85,43 @@ def test_bigint():
     assert model.field.as_db_value() == value
     assert model.field.as_python_value() == expected_python_value
     assert model.field.as_jsonable_value() == f'"{value}"'
+
+
+@skip_if_not_edgedb
+@pytest.mark.parametrize(
+    ["field_type", "value", "expected_db_type"],
+    [
+        [fields.Float32, 1.0, "float32"],
+        [fields.Float64, 1.0, "float64"],
+    ],
+)
+def test_valid_float(field_type: Type[fields.BaseField], value, expected_db_type):
+    class SampleModel(Model):
+        field: field_type
+
+    model = SampleModel(field=value)
+    assert model.field == value
+    assert model.field.as_db_type() == expected_db_type
+    assert model.field.as_db_value() == value
+    assert model.field.as_python_value() == value
+    assert model.field.as_jsonable_value() == f"{value}"
+
+
+@skip_if_not_edgedb
+@pytest.mark.parametrize(
+    ["field_type", "value"],
+    [
+        [fields.Float32, fields.Float32.le * 10],
+        [fields.Float32, fields.Float32.ge * 10],
+        [fields.Float64, fields.Float64.le * 10],
+        [fields.Float64, fields.Float64.ge * 10],
+        [fields.Float32, "invalid"],
+        [fields.Float64, "invalid"],
+    ],
+)
+def test_invalid_float(field_type: Type[fields.BaseField], value: Any):
+    class SampleModel(Model):
+        field: field_type
+
+    with pytest.raises(ValidationError):
+        SampleModel(field=value)

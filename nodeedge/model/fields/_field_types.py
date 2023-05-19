@@ -8,6 +8,7 @@ from typing_extensions import Self
 from pydantic.types import (
     ConstrainedStr,
     ConstrainedInt,
+    ConstrainedFloat,
 )
 
 from nodeedge import GlobalConfiguration
@@ -21,6 +22,8 @@ __all__ = [
     "Int32",
     "Int64",
     "BigInt",
+    "Float32",
+    "Float64",
 ]
 
 from nodeedge.types import BaseFilterable
@@ -43,9 +46,6 @@ class BaseField(BaseFilterable):
 
     @classmethod
     def validate(cls, *args, **kwargs):
-        for validator in cls.get_validators():
-            validator(*args, **kwargs)
-
         return cls(*args, **kwargs)
 
     @classmethod
@@ -140,7 +140,7 @@ class Int64(ConstrainedInt, BaseField):
         return result
 
 
-class BigInt(ConstrainedStr, BaseField):  # type: ignore
+class BigInt(ConstrainedStr, BaseField):
     regex = re.compile(r"((?P<value>[0-9]+)(e\+(?P<exponent>[0-9]+))?)n")
 
     @classmethod
@@ -162,3 +162,37 @@ class BigInt(ConstrainedStr, BaseField):  # type: ignore
 
     def as_jsonable_value(self):
         return json.dumps(self)
+
+
+class Float32(ConstrainedFloat, BaseField):
+    ge = -3.4e38
+    le = 3.4e38
+
+    @classmethod
+    def __get_validators__(cls):
+        for validator in super().__get_validators__():
+            yield validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: float) -> Self:
+        result = cls(value)
+        result._python_value = float(result)
+        return result
+
+
+class Float64(ConstrainedFloat, BaseField):
+    ge = -1.7e308
+    le = 1.7e308
+
+    @classmethod
+    def __get_validators__(cls):
+        for validator in super().__get_validators__():
+            yield validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: float) -> Self:
+        result = cls(value)
+        result._python_value = float(result)
+        return result
