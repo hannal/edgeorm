@@ -3,12 +3,14 @@ from __future__ import annotations
 import re
 from typing import Any
 import json
+from decimal import Decimal as _Decimal
 
 from typing_extensions import Self
 from pydantic.types import (
     ConstrainedStr,
     ConstrainedInt,
     ConstrainedFloat,
+    ConstrainedDecimal,
 )
 
 from nodeedge import GlobalConfiguration
@@ -24,6 +26,7 @@ __all__ = [
     "BigInt",
     "Float32",
     "Float64",
+    "Decimal",
 ]
 
 from nodeedge.types import BaseFilterable
@@ -196,3 +199,14 @@ class Float64(ConstrainedFloat, BaseField):
         result = cls(value)
         result._python_value = float(result)
         return result
+
+
+class Decimal(ConstrainedDecimal, BaseField):
+    @classmethod
+    def validate(cls, value: _Decimal | int | str) -> Self:
+        result = cls(super().validate(value))
+        result._python_value = result
+        return result
+
+    def as_jsonable_value(self):
+        return str(self.as_python_value())

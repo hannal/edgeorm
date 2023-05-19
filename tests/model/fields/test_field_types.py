@@ -1,4 +1,5 @@
 from typing import Type, Any
+from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
@@ -125,3 +126,27 @@ def test_invalid_float(field_type: Type[fields.BaseField], value: Any):
 
     with pytest.raises(ValidationError):
         SampleModel(field=value)
+
+
+@skip_if_not_edgedb
+@pytest.mark.parametrize(
+    ["value", "expected", "expected_python_value", "expected_json_value"],
+    [
+        ["1.7e30", Decimal("1.7e30"), Decimal("1.7e30"), "1.7E+30"],
+        [1_000_000_000.456, Decimal("1000000000.456"), Decimal("1000000000.456"), "1000000000.456"],
+        [1_000_000_000, Decimal("1000000000"), Decimal("1000000000"), "1000000000"],
+        [Decimal("1.7e30"), Decimal("1.7e30"), Decimal("1.7e30"), "1.7E+30"],
+    ],
+)
+def test_decimal(value, expected, expected_python_value, expected_json_value):
+    class SampleModel(Model):
+        field: fields.Decimal
+
+    expected_db_type = "decimal"
+    model = SampleModel(field=value)
+
+    assert model.field == expected
+    assert model.field.as_db_type() == expected_db_type
+    assert model.field.as_db_value() == expected_python_value
+    assert model.field.as_python_value() == expected_python_value
+    assert model.field.as_jsonable_value() == expected_json_value
