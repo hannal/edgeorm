@@ -1,6 +1,7 @@
 import datetime
 from typing import Type, Any
 from decimal import Decimal
+import json
 
 import pytest
 from pydantic import ValidationError
@@ -325,3 +326,19 @@ def test_date_duration(value, expected_units: DateDurationUnit):
     assert model.field.days == expected_units["days"]
     assert model.field.as_python_value() == value
     assert model.field.as_jsonable_value() == value
+
+
+def test_json():
+    class SampleModel(Model):
+        field: fields.Json
+
+    expected_db_type = "json"
+    jsonable_value = {"hello": "world"}
+    value = json.dumps(jsonable_value)
+
+    model = SampleModel(field=value)
+    assert model.field.as_db_type() == expected_db_type
+    assert isinstance(model.field, str)
+    assert isinstance(model.field.as_python_value(), str)
+    assert model.field.data == jsonable_value
+    assert model.field.as_jsonable_value() == jsonable_value

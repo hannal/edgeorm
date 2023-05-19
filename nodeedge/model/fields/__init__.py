@@ -16,6 +16,7 @@ from ._field_types import (
     Duration,
     RelativeDuration,
     DateDuration,
+    Json,
 )
 from ._model_field import ModelField
 
@@ -38,6 +39,7 @@ __all__ = [
     "Duration",
     "RelativeDuration",
     "DateDuration",
+    "Json",
     #
     # _model_field
     "ModelField",

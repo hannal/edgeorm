@@ -50,6 +50,7 @@ __all__ = [
     "Duration",
     "RelativeDuration",
     "DateDuration",
+    "Json",
 ]
 
 from nodeedge.types import BaseFilterable, LateInt
@@ -506,3 +507,25 @@ class DateDuration(ConstrainedStr, BaseField):
 
     def as_jsonable_value(self):
         return format_date_duration(self.months, self.days, only_body=False)
+
+
+class Json(ConstrainedStr, BaseField):
+    __slots__ = ("_data",)
+
+    @property
+    def data(self):
+        return self._data
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: str) -> "Json":
+        result = cls(value)
+        result._data = json.loads(value)
+        result._python_value = value
+        return result
+
+    def as_jsonable_value(self):
+        return self.data
