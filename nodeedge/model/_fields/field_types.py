@@ -1,31 +1,19 @@
 from __future__ import annotations
 
-import sys
 import datetime
 import json
-import uuid
 import re
 from typing import (
     Any,
     Union,
     Optional,
     TypeVar,
-    Generic,
-    Type,
-    Protocol,
-    List,
-    Iterable,
-    overload,
-    Callable,
-    Iterator,
     Tuple as TupleType,
 )
 from decimal import Decimal as _Decimal
-from types import EllipsisType
 
 from edgedb import DateDuration as _DateDuration
 from edgedb import RelativeDuration as _RelativeDuration
-from edgedb import NamedTuple as _NamedTuple
 from typing_extensions import Self
 from pydantic.typing import is_namedtuple
 from pydantic.errors import PydanticTypeError
@@ -52,12 +40,26 @@ from pydantic.validators import (
     tuple_validator,
 )
 
-from nodeedge import GlobalConfiguration
-from nodeedge.backends import BackendLoader
-from nodeedge.backends.base import FieldTypeMap
+from nodeedge.utils.datetime import (
+    is_aware,
+    make_naive,
+    is_naive,
+    make_aware,
+    parse_relative_duration,
+    format_relative_duration,
+    parse_date_duration,
+    format_date_duration,
+)
+
+from .base_fields import (
+    BaseField,
+    BaseListField,
+    PythonValueFieldMixin,
+    BaseUUIDField,
+)
+
 
 __all__ = [
-    "BaseField",
     "Str",
     "Int16",
     "Int32",
@@ -80,87 +82,11 @@ __all__ = [
     "UUID4",
     "UUID5",
     "Bytes",
-    "BaseListField",
     "Array",
     "Set",
     "Tuple",
     "NamedTuple",
 ]
-
-from nodeedge.types import BaseFilterable, LateInt
-from nodeedge.utils.datetime import (
-    is_aware,
-    make_naive,
-    is_naive,
-    make_aware,
-    parse_relative_duration,
-    format_relative_duration,
-    parse_date_duration,
-    format_date_duration,
-)
-
-_backend = BackendLoader(GlobalConfiguration.BACKEND)
-_field_type_map = _backend.field_type_map
-
-
-_PythonValue_T = TypeVar("_PythonValue_T")
-
-
-class _PythonValueMixin(Generic[_PythonValue_T]):
-    _python_value: Union[_PythonValue_T, EllipsisType] = ...
-
-    def as_python_value(self) -> _PythonValue_T:
-        if self._python_value is ...:
-            return self
-        return self._python_value
-
-
-_DbValue_T = TypeVar("_DbValue_T")
-
-
-class _DbValueMixin(Generic[_DbValue_T]):
-    _db_value: Union[_DbValue_T, EllipsisType] = ...
-
-    def as_db_value(self) -> _DbValue_T:
-        if self._db_value is ...:
-            return self
-        return self._db_value
-
-
-class BaseField(BaseFilterable, _PythonValueMixin, _DbValueMixin):
-    """Model을 정의할 때 사용하는 model field type의 base."""
-
-    _backend: str = _backend
-    _field_type_map: FieldTypeMap = _field_type_map
-
-    _db_link_type = None
-    _db_field_type = None
-
-    @classmethod
-    def validate(cls, *args, **kwargs):
-        return cls(*args, **kwargs)
-
-    @classmethod
-    def get_validators(cls):
-        for validator in cls.__get_validators__():
-            yield validator
-
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def as_db_link_type(cls):
-        return cls._db_link_type or cls.as_db_type()
-
-    @classmethod
-    def as_db_type(cls):
-        return cls._db_field_type or getattr(cls._field_type_map, cls.__name__)
-
-    def as_jsonable_value(self):
-        if self._python_value is ...:
-            raise ValueError(f"value is not set: {self}")
-        return json.dumps(self.as_python_value())
 
 
 class Str(ConstrainedStr, BaseField):
@@ -307,7 +233,9 @@ class Bool(int, BaseField):
         return result
 
 
-class _IsoFormatField(_PythonValueMixin[Union[datetime.date, datetime.time, datetime.datetime]]):
+class _IsoFormatField(
+    PythonValueFieldMixin[Union[datetime.date, datetime.time, datetime.datetime]]
+):
     def as_jsonable_value(self):
         return self.as_python_value().isoformat()
 
@@ -571,26 +499,6 @@ class Json(ConstrainedStr, BaseField):
         return self.data
 
 
-class BaseUUIDField(BaseField, _PythonValueMixin[uuid.UUID], _DbValueMixin[str]):
-    @classmethod
-    def validate(cls: Type[uuid.UUID], value: str | uuid.UUID):
-        if isinstance(value, uuid.UUID):
-            result = cls(value.hex)
-        else:
-            result = cls(value)
-
-        return result
-
-    def as_python_value(self) -> _PythonValue_T:
-        return self
-
-    def as_db_value(self) -> _DbValue_T:
-        return str(self.as_python_value())
-
-    def as_jsonable_value(self):
-        return self.as_db_value()
-
-
 class UUID1(_UUID1, BaseUUIDField):
     @classmethod
     def __get_validators__(cls):
@@ -632,39 +540,6 @@ class Bytes(ConstrainedBytes, BaseField):
 
 
 Listable_T = TypeVar("Listable_T")
-Container_T = TypeVar("Container_T")
-
-
-class BaseListField(Generic[Container_T, Listable_T]):
-    _data: Container_T[Listable_T]
-
-    def __init__(self, value):
-        self._data = value
-
-    def __iter__(self):
-        return self.data.__iter__()
-
-    def __getattr__(self, name: str):
-        return getattr(self.data, name)
-
-    def __getitem__(self, key):
-        return self.data[key]
-
-    def __len__(self):
-        return len(self.data)
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.data.__repr__()})"
-
-    @property
-    def data(self):
-        return self._data
-
-    def as_jsonable_value(self):
-        return [v.as_python_value() if hasattr(v, "as_python_value") else v for v in self.data]
-
-    def as_db_value(self):
-        return [v.as_db_value() if hasattr(v, "as_db_value") else v for v in self.data]
 
 
 class Array(BaseListField[list, Listable_T], BaseField):

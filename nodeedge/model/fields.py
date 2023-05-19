@@ -1,5 +1,5 @@
-from ._field_types import (
-    BaseField,
+from ._fields.base_fields import BaseField, BaseListField, BaseUUIDField, BaseLinkField
+from ._fields.field_types import (
     Str,
     Int16,
     Int32,
@@ -22,17 +22,21 @@ from ._field_types import (
     UUID4,
     UUID5,
     Bytes,
-    BaseListField,
     Array,
     Set,
     Tuple,
     NamedTuple,
 )
-from ._model_field import ModelField
+from ._fields.link_field_types import Link, MultiLink
+from ._fields.model_field import ModelField
 
 __all__ = [
-    # _field_types
     "BaseField",
+    "BaseUUIDField",
+    "BaseListField",
+    "BaseLinkField",
+    #
+    # _field_types
     "Str",
     "Int16",
     "Int32",
@@ -55,11 +59,14 @@ __all__ = [
     "UUID4",
     "UUID5",
     "Bytes",
-    "BaseListField",
     "Array",
     "Set",
     "Tuple",
     "NamedTuple",
+    #
+    # _link_field_types
+    "Link",
+    "MultiLink",
     #
     # _model_field
     "ModelField",
