@@ -3,6 +3,7 @@ from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
+from pydantic.validators import BOOL_TRUE, BOOL_FALSE
 
 from nodeedge import GlobalConfiguration
 from nodeedge.model import fields, Model
@@ -150,3 +151,25 @@ def test_decimal(value, expected, expected_python_value, expected_json_value):
     assert model.field.as_db_value() == expected_python_value
     assert model.field.as_python_value() == expected_python_value
     assert model.field.as_jsonable_value() == expected_json_value
+
+
+@skip_if_not_edgedb
+@pytest.mark.parametrize(
+    ["value", "expected"],
+    [
+        *[[_v, True] for _v in BOOL_TRUE],
+        *[[_v, False] for _v in BOOL_FALSE],
+    ],
+)
+def test_bool(value, expected):
+    class SampleModel(Model):
+        field: fields.Bool
+
+    expected_db_type = "bool"
+    model = SampleModel(field=value)
+
+    assert model.field == expected
+    assert model.field.as_db_type() == expected_db_type
+    assert model.field.as_db_value() == expected
+    assert model.field.as_python_value() == expected
+    assert model.field.as_jsonable_value() == str(expected).lower()

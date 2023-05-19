@@ -12,6 +12,13 @@ from pydantic.types import (
     ConstrainedFloat,
     ConstrainedDecimal,
 )
+from pydantic.validators import (
+    bool_validator,
+    list_validator,
+    number_size_validator,
+    set_validator,
+    tuple_validator,
+)
 
 from nodeedge import GlobalConfiguration
 from nodeedge.backends import BackendLoader
@@ -27,6 +34,7 @@ __all__ = [
     "Float32",
     "Float64",
     "Decimal",
+    "Bool",
 ]
 
 from nodeedge.types import BaseFilterable
@@ -210,3 +218,19 @@ class Decimal(ConstrainedDecimal, BaseField):
 
     def as_jsonable_value(self):
         return str(self.as_python_value())
+
+
+class Bool(int, BaseField):
+    @classmethod
+    def __modify_schema__(cls, field_schema: dict[str, Any]) -> None:
+        field_schema.update(type="boolean")
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: Any) -> Self:
+        result = cls(bool_validator(value))
+        result._python_value = True if result else False
+        return result

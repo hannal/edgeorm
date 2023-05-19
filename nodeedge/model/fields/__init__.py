@@ -1,4 +1,15 @@
-from ._field_types import BaseField, Str, Int16, Int32, Int64, BigInt, Float32, Float64, Decimal
+from ._field_types import (
+    BaseField,
+    Str,
+    Int16,
+    Int32,
+    Int64,
+    BigInt,
+    Float32,
+    Float64,
+    Decimal,
+    Bool,
+)
 from ._model_field import ModelField
 
 __all__ = [
@@ -12,6 +23,7 @@ __all__ = [
     "Float32",
     "Float64",
     "Decimal",
+    "Bool",
     #
     # _model_field
     "ModelField",
