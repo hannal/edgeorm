@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Union, Optional
+from typing import Any, Union, Optional, TypeVar, Generic
 import json
 from decimal import Decimal as _Decimal
 import datetime
+from types import EllipsisType
 
+from edgedb import DateDuration as _DateDuration
+from edgedb import RelativeDuration as _RelativeDuration
 from typing_extensions import Self
-import pydantic
 from pydantic.datetime_parse import StrBytesIntFloat, parse_date, parse_datetime, parse_time
 from pydantic.types import (
     ConstrainedStr,
@@ -45,16 +47,40 @@ __all__ = [
     "Time",
     "NaiveDateTime",
     "AwareDateTime",
+    "Duration",
+    "RelativeDuration",
+    "DateDuration",
 ]
 
-from nodeedge.types import BaseFilterable
-from nodeedge.utils.datetime import is_aware, make_naive, is_naive, make_aware
+from nodeedge.types import BaseFilterable, LateInt
+from nodeedge.utils.datetime import (
+    is_aware,
+    make_naive,
+    is_naive,
+    make_aware,
+    parse_relative_duration,
+    format_relative_duration,
+    parse_date_duration,
+    format_date_duration,
+)
 
 _backend = BackendLoader(GlobalConfiguration.BACKEND)
 _field_type_map = _backend.field_type_map
 
 
-class BaseField(BaseFilterable):
+_PythonValue_T = TypeVar("_PythonValue_T")
+
+
+class _PythonValueMixin(Generic[_PythonValue_T]):
+    _python_value: Union[_PythonValue_T, EllipsisType] = ...
+
+    def as_python_value(self) -> _PythonValue_T:
+        if self._python_value is ...:
+            return self
+        return self._python_value
+
+
+class BaseField(BaseFilterable, _PythonValueMixin):
     """Model을 정의할 때 사용하는 model field type의 base."""
 
     _backend: str = _backend
@@ -63,7 +89,6 @@ class BaseField(BaseFilterable):
     _db_link_type = None
     _db_field_type = None
     _db_value: Any = ...
-    _python_value: Any = ...
 
     @classmethod
     def validate(cls, *args, **kwargs):
@@ -90,11 +115,6 @@ class BaseField(BaseFilterable):
         if self._db_value is ...:
             return self
         return self._db_value
-
-    def as_python_value(self):
-        if self._python_value is ...:
-            return self
-        return self._python_value
 
     def as_jsonable_value(self):
         if self._python_value is ...:
@@ -246,7 +266,12 @@ class Bool(int, BaseField):
         return result
 
 
-class Date(ConstrainedDate, BaseField):
+class _IsoFormatField(_PythonValueMixin[Union[datetime.date, datetime.time, datetime.datetime]]):
+    def as_jsonable_value(self):
+        return self.as_python_value().isoformat()
+
+
+class Date(ConstrainedDate, _IsoFormatField, BaseField):
     @classmethod
     def __get_validators__(cls):
         yield parse_date
@@ -265,11 +290,8 @@ class Date(ConstrainedDate, BaseField):
     def today(cls) -> Self:
         return cls.validate(datetime.date.today())
 
-    def as_jsonable_value(self):
-        return self.as_python_value().isoformat()
 
-
-class Time(datetime.time, BaseField, metaclass=ConstrainedNumberMeta):
+class Time(datetime.time, _IsoFormatField, BaseField, metaclass=ConstrainedNumberMeta):
     gt: Optional[datetime.time] = None
     ge: Optional[datetime.time] = None
     lt: Optional[datetime.time] = None
@@ -305,11 +327,8 @@ class Time(datetime.time, BaseField, metaclass=ConstrainedNumberMeta):
     def now(cls):
         return cls.validate(datetime.datetime.utcnow().time())
 
-    def as_jsonable_value(self):
-        return self.as_python_value().isoformat()
 
-
-class NaiveDateTime(datetime.datetime, BaseField, metaclass=ConstrainedNumberMeta):
+class NaiveDateTime(datetime.datetime, _IsoFormatField, BaseField, metaclass=ConstrainedNumberMeta):
     gt: Optional[datetime.datetime] = None
     ge: Optional[datetime.datetime] = None
     lt: Optional[datetime.datetime] = None
@@ -355,11 +374,8 @@ class NaiveDateTime(datetime.datetime, BaseField, metaclass=ConstrainedNumberMet
     def now(cls, tz: Optional[datetime.tzinfo] = None) -> Self:
         return cls.validate(make_naive(datetime.datetime.now(tz)))
 
-    def as_jsonable_value(self):
-        return self.as_python_value().isoformat()
 
-
-class AwareDateTime(datetime.datetime, BaseField, metaclass=ConstrainedNumberMeta):
+class AwareDateTime(datetime.datetime, _IsoFormatField, BaseField, metaclass=ConstrainedNumberMeta):
     gt: Optional[datetime.datetime] = None
     ge: Optional[datetime.datetime] = None
     lt: Optional[datetime.datetime] = None
@@ -405,5 +421,88 @@ class AwareDateTime(datetime.datetime, BaseField, metaclass=ConstrainedNumberMet
     def now(cls, tz: Optional[datetime.tzinfo] = None) -> Self:
         return cls.validate(make_aware(datetime.datetime.now(tz)))
 
+
+_SECS_PER_MINUTE = 60
+_SECS_PER_HOUR = 3600
+
+
+class Duration(datetime.timedelta, BaseField):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: datetime.timedelta) -> Self:
+        if not isinstance(value, datetime.timedelta):
+            raise ValueError("invalid timedelta")
+
+        result = cls(days=value.days, seconds=value.seconds, microseconds=value.microseconds)
+        result._python_value = value
+        return result
+
     def as_jsonable_value(self):
-        return self.as_python_value().isoformat()
+        return self.format_duration()
+
+    def format_duration(self) -> str:
+        value = self.as_python_value()
+        total_seconds = value.total_seconds()
+
+        time_parts = []
+        if hour := (total_seconds // _SECS_PER_HOUR):
+            time_parts.append(f"{int(hour)} hours")
+            total_seconds -= hour * _SECS_PER_HOUR
+        if minute := (total_seconds // _SECS_PER_MINUTE):
+            time_parts.append(f"{int(minute)} minutes")
+            total_seconds -= minute * _SECS_PER_MINUTE
+
+        if total_seconds:
+            time_parts.append(f"{int(total_seconds)} seconds")
+
+        if value.microseconds:
+            time_parts.append(f"{value.microseconds} microseconds")
+
+        return " ".join(time_parts)
+
+
+class RelativeDuration(ConstrainedStr, BaseField):
+    _edgedb_value: _RelativeDuration
+    months: int
+    days: int
+    microseconds: int
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: str) -> Self:
+        result = cls(value)
+        parsed = parse_relative_duration(value)
+        result.months = parsed["months"] or 0
+        result.days = parsed["days"] or 0
+        result.microseconds = parsed["microseconds"] or 0
+        result._db_value = _RelativeDuration(**parsed)
+        result._python_value = value
+        return result
+
+    def as_jsonable_value(self):
+        return format_relative_duration(self.months, self.days, self.microseconds)
+
+
+class DateDuration(ConstrainedStr, BaseField):
+    _edgedb_value: _DateDuration
+    months: int
+    days: int
+
+    @classmethod
+    def validate(cls, value: str) -> Self:
+        result = cls(value)
+        parsed = parse_date_duration(value)
+        result.months = parsed["months"] or 0
+        result.days = parsed["days"] or 0
+        result._db_value = _DateDuration(**parsed)
+        result._python_value = value
+        return result
+
+    def as_jsonable_value(self):
+        return format_date_duration(self.months, self.days, only_body=False)

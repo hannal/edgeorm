@@ -13,6 +13,9 @@ from ._field_types import (
     Time,
     NaiveDateTime,
     AwareDateTime,
+    Duration,
+    RelativeDuration,
+    DateDuration,
 )
 from ._model_field import ModelField
 
@@ -32,6 +35,9 @@ __all__ = [
     "Time",
     "NaiveDateTime",
     "AwareDateTime",
+    "Duration",
+    "RelativeDuration",
+    "DateDuration",
     #
     # _model_field
     "ModelField",

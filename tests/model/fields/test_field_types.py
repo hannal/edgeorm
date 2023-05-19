@@ -5,10 +5,12 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 from pydantic.validators import BOOL_TRUE, BOOL_FALSE
+from edgedb import DateDuration as _DateDuration
+from edgedb import RelativeDuration as _RelativeDuration
 
 from nodeedge import GlobalConfiguration
 from nodeedge.model import fields, Model
-from nodeedge.utils.datetime import make_aware
+from nodeedge.utils.datetime import make_aware, RelativeDurationUnit, DateDurationUnit
 
 is_backend_edgedb = GlobalConfiguration.is_edgedb_backend()
 
@@ -245,3 +247,81 @@ def test_datetime(
     assert model.field.as_db_value() == expected_db_value
     assert model.field.as_python_value() == expected_db_value
     assert model.field.as_jsonable_value() == expected_json_value
+
+
+@skip_if_not_edgedb
+@pytest.mark.parametrize(
+    ["value", "expected_json_value"],
+    [
+        [datetime.timedelta(days=1), "24 hours"],
+        [datetime.timedelta(days=3, hours=10, seconds=5), "82 hours 5 seconds"],
+    ],
+)
+def test_duration(value, expected_json_value):
+    class SampleModel(Model):
+        field: fields.Duration
+
+    expected_type = datetime.timedelta
+    expected_db_type = "duration"
+
+    model = SampleModel(field=value)
+
+    assert isinstance(model.field.as_python_value(), expected_type)
+    expected_db_value = model.field.as_python_value()
+    assert model.field.as_db_type() == expected_db_type
+    assert model.field.as_db_value() == expected_db_value
+    assert model.field.as_python_value() == value
+    assert model.field.as_jsonable_value() == expected_json_value
+
+
+@skip_if_not_edgedb
+@pytest.mark.parametrize(
+    ["value", "expected_units"],
+    [
+        ["PT0S", {"months": 0, "days": 0, "microseconds": 0}],
+        ["P1Y3M34DT0S", {"months": 15, "days": 34, "microseconds": 0}],
+        ["PT-35S", {"months": 0, "days": 0, "microseconds": -35 * 1_000_000}],
+        ["PT35.431000S", {"months": 0, "days": 0, "microseconds": 35 * 1_000_000 + 431000}],
+    ],
+)
+def test_relative_duration(value, expected_units: RelativeDurationUnit):
+    class SampleModel(Model):
+        field: fields.RelativeDuration
+
+    expected_db_type = "cal::relative_duration"
+
+    model = SampleModel(field=value)
+
+    assert isinstance(model.field.as_python_value(), str)
+    assert model.field.as_db_type() == expected_db_type
+    assert isinstance(model.field.as_db_value(), _RelativeDuration)
+    assert model.field.months == expected_units["months"]
+    assert model.field.days == expected_units["days"]
+    assert model.field.microseconds == expected_units["microseconds"]
+    assert model.field.as_python_value() == value
+    assert model.field.as_jsonable_value() == value
+
+
+@skip_if_not_edgedb
+@pytest.mark.parametrize(
+    ["value", "expected_units"],
+    [
+        ["P0D", {"months": 0, "days": 0}],
+        ["P1Y3M34D", {"months": 15, "days": 34}],
+    ],
+)
+def test_date_duration(value, expected_units: DateDurationUnit):
+    class SampleModel(Model):
+        field: fields.DateDuration
+
+    expected_db_type = "cal::date_duration"
+
+    model = SampleModel(field=value)
+
+    assert isinstance(model.field.as_python_value(), str)
+    assert model.field.as_db_type() == expected_db_type
+    assert isinstance(model.field.as_db_value(), _DateDuration)
+    assert model.field.months == expected_units["months"]
+    assert model.field.days == expected_units["days"]
+    assert model.field.as_python_value() == value
+    assert model.field.as_jsonable_value() == value
