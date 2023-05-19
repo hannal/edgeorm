@@ -22,6 +22,11 @@ from ._field_types import (
     UUID4,
     UUID5,
     Bytes,
+    BaseListField,
+    Array,
+    Set,
+    Tuple,
+    NamedTuple,
 )
 from ._model_field import ModelField
 
@@ -50,6 +55,11 @@ __all__ = [
     "UUID4",
     "UUID5",
     "Bytes",
+    "BaseListField",
+    "Array",
+    "Set",
+    "Tuple",
+    "NamedTuple",
     #
     # _model_field
     "ModelField",

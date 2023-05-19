@@ -9,6 +9,7 @@ import pytz
 
 __all__ = [
     "is_aware",
+    "is_naive",
     "get_default_timezone",
     "is_pytz_zone",
     "make_aware",

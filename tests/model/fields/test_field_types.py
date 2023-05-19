@@ -3,6 +3,7 @@ import json
 import uuid
 from typing import Type, Any
 from decimal import Decimal
+from collections import namedtuple
 
 import pytest
 from pydantic import ValidationError
@@ -377,3 +378,62 @@ def test_bytes():
     assert isinstance(model.field, bytes)
     assert isinstance(model.field.as_python_value(), bytes)
     assert isinstance(model.field.as_db_value(), bytes)
+
+
+@skip_if_not_edgedb
+def test_array():
+    class SampleModel(Model):
+        field: fields.Array[str]
+
+    value = ["asdf"]
+    model = SampleModel(field=value)
+
+    assert model.field.as_db_type() == "array"
+    assert isinstance(model.field.as_db_value(), list)
+    assert model.field.data == value
+    assert model.field.as_db_value() == value
+    assert model.field.as_python_value() == value
+
+
+@skip_if_not_edgedb
+def test_set():
+    class SampleModel(Model):
+        field: fields.Set[str]
+
+    value = {"asdf"}
+    model = SampleModel(field=value)
+
+    assert model.field.as_db_type() == "set"
+    assert isinstance(model.field.as_db_value(), list)
+    assert model.field.data == list(value)
+    assert model.field.as_db_value() == list(value)
+    assert model.field.as_python_value() == set(value)
+
+
+@skip_if_not_edgedb
+def test_tuple():
+    class SampleModel(Model):
+        field: fields.Tuple[str]
+
+    value = ("asdf",)
+    model = SampleModel(field=value)
+    assert model.field.as_db_type() == "tuple"
+    assert isinstance(model.field.as_db_value(), list)
+    assert model.field.data == value
+    assert model.field.as_db_value() == list(value)
+    assert model.field.as_python_value() == tuple(value)
+
+
+@skip_if_not_edgedb
+def test_namedtuple():
+    class SampleModel(Model):
+        field: fields.NamedTuple[str]
+
+    value = namedtuple("SomeNamedTuple", ["x"])("asdf")
+    model = SampleModel(field=value)
+
+    assert model.field.as_db_type() == "tuple"
+    assert isinstance(model.field.as_db_value(), list)
+    assert model.field.data == value
+    assert model.field.as_db_value() == list(value)
+    assert model.field.as_python_value() == tuple(value)

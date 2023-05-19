@@ -1,17 +1,34 @@
 from __future__ import annotations
 
-import abc
+import sys
+import datetime
+import json
 import uuid
 import re
-from typing import Any, Union, Optional, TypeVar, Generic, Type
-import json
+from typing import (
+    Any,
+    Union,
+    Optional,
+    TypeVar,
+    Generic,
+    Type,
+    Protocol,
+    List,
+    Iterable,
+    overload,
+    Callable,
+    Iterator,
+    Tuple as TupleType,
+)
 from decimal import Decimal as _Decimal
-import datetime
 from types import EllipsisType
 
 from edgedb import DateDuration as _DateDuration
 from edgedb import RelativeDuration as _RelativeDuration
+from edgedb import NamedTuple as _NamedTuple
 from typing_extensions import Self
+from pydantic.typing import is_namedtuple
+from pydantic.errors import PydanticTypeError
 from pydantic.datetime_parse import StrBytesIntFloat, parse_date, parse_datetime, parse_time
 from pydantic.types import UUID1 as _UUID1
 from pydantic.types import UUID3 as _UUID3
@@ -63,6 +80,11 @@ __all__ = [
     "UUID4",
     "UUID5",
     "Bytes",
+    "BaseListField",
+    "Array",
+    "Set",
+    "Tuple",
+    "NamedTuple",
 ]
 
 from nodeedge.types import BaseFilterable, LateInt
@@ -607,3 +629,124 @@ class Bytes(ConstrainedBytes, BaseField):
 
     def as_jsonable_value(self):
         return self.decode()
+
+
+Listable_T = TypeVar("Listable_T")
+Container_T = TypeVar("Container_T")
+
+
+class BaseListField(Generic[Container_T, Listable_T]):
+    _data: Container_T[Listable_T]
+
+    def __init__(self, value):
+        self._data = value
+
+    def __iter__(self):
+        return self.data.__iter__()
+
+    def __getattr__(self, name: str):
+        return getattr(self.data, name)
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __len__(self):
+        return len(self.data)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.data.__repr__()})"
+
+    @property
+    def data(self):
+        return self._data
+
+    def as_jsonable_value(self):
+        return [v.as_python_value() if hasattr(v, "as_python_value") else v for v in self.data]
+
+    def as_db_value(self):
+        return [v.as_db_value() if hasattr(v, "as_db_value") else v for v in self.data]
+
+
+class Array(BaseListField[list, Listable_T], BaseField):
+    _data: list[Listable_T]
+
+    @classmethod
+    def __get_validators__(cls):
+        yield list_validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: Any) -> Self:
+        if isinstance(value, Array):
+            target = value.data
+        else:
+            target = value
+
+        result = cls(list(target))
+        result._python_value = result.data
+        return result
+
+
+class Set(BaseListField[list, Listable_T], BaseField):
+    @classmethod
+    def __get_validators__(cls):
+        yield set_validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: Any) -> Self:
+        if isinstance(value, Set):
+            target = value.data
+        else:
+            target = value
+
+        result = cls(list(target))
+        result._python_value = set(target)
+        result._db_value = result.data
+        return result
+
+
+class Tuple(BaseListField[TupleType, Listable_T], BaseField):
+    @classmethod
+    def __get_validators__(cls):
+        yield tuple_validator
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, value: Any) -> Self:
+        if isinstance(value, Tuple):
+            target = value.data
+        else:
+            target = value
+
+        result = cls(tuple(target))
+        result._python_value = result.data
+        return result
+
+
+class NamedTuple(BaseListField[TupleType, Listable_T], BaseField):
+    class NamedTupleError(PydanticTypeError):
+        msg_template = "value is not a valid namedtuple"
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.is_namedtuple
+        yield cls.validate
+
+    @classmethod
+    def is_namedtuple(cls, value: Any):
+        if is_namedtuple(type(value)):
+            return value
+        raise cls.NamedTupleError
+
+    @classmethod
+    def validate(cls, value: Any) -> Self:
+        if isinstance(value, NamedTuple):
+            target = value.data
+        else:
+            target = value
+
+        result = cls(target)
+        result._python_value = result.data
+        result._db_value = tuple(result.data)
+        return result
