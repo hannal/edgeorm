@@ -43,7 +43,11 @@ def test_str():
         [fields.Int64, 1, "int64"],
     ],
 )
-def test_valid_int(field_type: Type[fields.BaseField], value: int, expected_db_type: str):
+def test_valid_int(
+    field_type: Type[fields.BaseField],
+    value: int,
+    expected_db_type: str,
+):
     class SampleModel(Model):
         field: field_type
 
@@ -237,7 +241,11 @@ _aware_now = make_aware(datetime.datetime.utcnow())
     ],
 )
 def test_datetime(
-    field_type: Type[fields.BaseField], value, expected_type, expected_db_type, expected_json_value
+    field_type: Type[fields.BaseField],
+    value,
+    expected_type,
+    expected_db_type,
+    expected_json_value,
 ):
     class SampleModel(Model):
         field: field_type
