@@ -1,9 +1,9 @@
 from inspect import isclass
 from functools import partial, update_wrapper
+from typing import Any, Type, Union, Tuple
 
 from pydantic import typing as pydantic_typing
 
-is_class = isclass
 
 get_args = pydantic_typing.get_args
 
@@ -23,7 +23,30 @@ __all__ = [
     "get_origin",
     "get_all_type_hints",
     "annotate_from",
+    "is_subclass",
 ]
+
+
+def is_class(obj: Any):
+    if isclass(obj):
+        assert isinstance(type(obj), type)
+        return obj
+    return False
+
+
+def is_subclass(obj: Any, target: Union[Type, Tuple[Type, ...]]):
+    if not is_class(obj):
+        raise TypeError("is_subclass() arg 1 must be a class")
+    if not is_class(target) and not isinstance(target, tuple) and not get_args(target):
+        raise TypeError("is_subclass() arg 2 must be a class, a tuple of classes, or a union")
+
+    assert isinstance(type(obj), type)
+
+    try:
+        assert issubclass(obj, target)
+        return True
+    except AssertionError:
+        return False
 
 
 def annotate_from(fn):

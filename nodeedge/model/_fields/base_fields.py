@@ -1,24 +1,20 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import uuid
-import dataclasses
 from types import EllipsisType
-from typing import TypeVar, Generic, Union, Type, Any, Optional, Sequence, cast
+from typing import TypeVar, Generic, Union, Type, Any, Sequence, cast
+
 from typing_extensions import Self, TYPE_CHECKING, TypeAlias
 from edgedb import Object as EdgeDBObject
-from pydantic.fields import Field as _PydanticField
 
-from nodeedge import GlobalConfiguration, Undefined
+from nodeedge import GlobalConfiguration
 from nodeedge.backends import BackendLoader, FieldTypeMap
 from nodeedge.model import BaseNodeModel, BaseLinkPropertyModel
 from nodeedge.types import BaseFilterable, FieldInfo
-from ...utils.typing import annotate_from
-
 
 __all__ = [
-    "field",
-    "NodeEdgeFieldInfo",
     "BaseField",
     "BaseListField",
     "BaseLinkField",
@@ -31,8 +27,8 @@ __all__ = [
     "DbValueField_T",
     "Link_T",
     "LinkProperty_T",
+    "NodeEdgeFieldInfo",
 ]
-
 
 if TYPE_CHECKING:
     Link_T = TypeVar("Link_T", bound=BaseNodeModel)
@@ -218,33 +214,8 @@ class BaseLinkField(DbValueFieldMixin, Generic[Link_T, LinkProperty_T]):
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class NodeEdgeFieldInfo:
     model: Type[BaseNodeModel]
-    link_property_model: Optional[Type[BaseLinkPropertyModel]] = dataclasses.field(default=None)
-
-    @property
-    def is_single_link(self):
-        return False
-
-    @property
-    def is_multi_link(self):
-        return False
-
-
-@annotate_from(_PydanticField)
-def field(
-    default: Any = Undefined,
-    *,
-    # for nodeedge
-    model: Optional[Type[BaseNodeModel]] = None,
-    # for pydantic
-    **kwargs,
-) -> FieldInfo:
-    nodeedge = None
-
-    if model:
-        nodeedge = NodeEdgeFieldInfo(
-            model=model,
-        )
-
-    field_info = FieldInfo(default, nodeedge=nodeedge, **kwargs)
-    field_info._validate()
-    return field_info
+    deferred: bool
+    is_single_link: bool = dataclasses.field(default=False)
+    is_multi_link: bool = dataclasses.field(default=False)
+    link_model: Union[Type[BaseNodeModel], None] = dataclasses.field(default=None)
+    link_property_model: Union[Type[BaseLinkPropertyModel], None] = dataclasses.field(default=None)

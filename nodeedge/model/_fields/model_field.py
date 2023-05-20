@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Type, Optional, Union, cast, Iterable
+from typing import Optional, Union, cast, Iterable
 
 from typing_extensions import TYPE_CHECKING
 from pydantic.fields import ModelField as _PydanticModelField
@@ -10,7 +10,7 @@ from nodeedge.types import FieldInfo
 from .base_fields import NodeEdgeFieldInfo
 
 if TYPE_CHECKING:
-    from .._base_model import BaseNodeModel, BaseLinkPropertyModel
+    pass
 
 
 __all__ = ["ModelField"]
@@ -19,28 +19,14 @@ __all__ = ["ModelField"]
 class ModelField(_PydanticModelField):
     def __init__(
         self,
-        model: Optional[Type[BaseNodeModel]] = None,
-        link_property_model: Optional[Type[BaseLinkPropertyModel]] = None,
+        nodeedge_field_info: Optional[NodeEdgeFieldInfo] = None,
         **kwargs,
     ) -> None:
         field_info = substitute_field_info(
-            kwargs.pop("field_info", None),
-            create_nodeedge_field_info(model, link_property_model),
+            origin=kwargs.pop("field_info", None),
+            nodeedge=nodeedge_field_info,
         )
         super().__init__(field_info=field_info, **kwargs)
-
-
-def create_nodeedge_field_info(
-    model: Optional[Type[BaseNodeModel]] = None,
-    link_property_model: Optional[Type[BaseLinkPropertyModel]] = None,
-) -> Union[NodeEdgeFieldInfo, None]:
-    if not model:
-        return None
-
-    return NodeEdgeFieldInfo(
-        model=model,
-        link_property_model=link_property_model,
-    )
 
 
 def substitute_field_info(

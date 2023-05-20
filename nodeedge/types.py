@@ -21,8 +21,7 @@ from pydantic.fields import FieldInfo as _PydanticFieldInfo
 from .constants import Undefined
 
 if TYPE_CHECKING:
-    from .model.fields import NodeEdgeFieldInfo
-
+    from .model._fields.base_fields import NodeEdgeFieldInfo
 
 __all__ = ["BaseFilterable", "ImmutableDict", "ValueClass", "UndefinedType", "FieldInfo"]
 
