@@ -8,6 +8,12 @@ packages = [
     {include = "nodeedge", from = "./"},
 ]
 
+[project.urls]
+Homepage = 'https://github.com/hannal/nodeedge'
+Documentation = 'https://github.com/hannal/nodeedge'
+Source = 'https://github.com/hannal/nodeedge'
+Changelog = 'https://github.com/hannal/nodeedge'
+
 [tool.poetry.dependencies]
 python = "^3.7"
 edgedb = "^1.3.0"
@@ -34,7 +40,7 @@ minversion = "7.1.0"
 addopts = "-vv --strict-markers --tb=short --no-cov-on-fail --asyncio-mode=auto -p no:warnings --doctest-modules"
 python_files = ["tests.py", "test_*.py"]
 testpaths = ["tests"]
-pythonpath = ["./edgeorm/", "./"]
+pythonpath = ["./"]
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning:etcd3.*:",
