@@ -176,7 +176,7 @@ class BaseLinkField(DbValueFieldMixin, Generic[Link_T, LinkProperty_T]):
         return f"{self.__class__.__name__})"
 
     def __getattr__(self, attr: str):
-        data = self.as_db_value()
+        data = self._db_value
         if hasattr(data, attr):
             return getattr(data, attr)
 

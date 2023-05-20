@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from functools import lru_cache
-from typing import List, Any, Tuple, Union, cast, Optional
+from typing import List, Any, Union, cast, Optional
 
 from pydantic.validators import list_validator
 from typing_extensions import Self, TypeAlias
@@ -31,13 +31,13 @@ LinkPropertyDataType: TypeAlias = Union[BaseLinkPropertyModel, None]
 
 
 class Link(BaseLinkField[Link_T, LinkProperty_T], BaseField):
-    _db_value: Link_T | uuid.UUID
-    _link_property: LinkProperty_T | None
+    _db_value: Union[Link_T, uuid.UUID]
+    _link_property: Union[LinkProperty_T, None]
 
     def __init__(
         self,
-        link_data: Link_T | uuid.UUID,
-        link_property: LinkProperty_T | None = None,
+        link_data: Union[Link_T, uuid.UUID],
+        link_property: Optional[LinkProperty_T] = None,
     ):
         self._db_value = link_data
         self._link_property = link_property
@@ -68,18 +68,18 @@ class Link(BaseLinkField[Link_T, LinkProperty_T], BaseField):
         yield cls.validate
 
     @classmethod
-    def validate(
-        cls,
-        link_data: Union[BaseNodeModel, uuid.UUID, DBRawObject, List, Tuple],
-        link_property: Optional[BaseLinkPropertyModel] = None,
-    ) -> Self:
-        if isinstance(link_data, (list, tuple)):
-            if len(link_data) != 2:
+    def validate(cls, value: Any) -> Self:
+        link_data: Union[BaseNodeModel, uuid.UUID, DBRawObject]
+        link_property: Optional[BaseLinkPropertyModel] = None
+        if isinstance(value, (list, tuple)):
+            if len(value) != 2:
                 raise ValueError(
                     "invalid Link value: must be a tuple of (link_data, link_property)"
                 )
 
-            link_data, link_property = link_data
+            link_data, link_property = value
+        else:
+            link_data = value
 
         if not isinstance(link_data, (BaseNodeModel, uuid.UUID, DBRawObject)):
             raise ValueError(f"invalid Link value type: {type(link_data)}")
@@ -89,12 +89,6 @@ class Link(BaseLinkField[Link_T, LinkProperty_T], BaseField):
 
         result = cls(cast(Link_T, link_data), cast(LinkProperty_T, link_property))
         return result
-
-    def as_db_value(self) -> str | None:
-        return self._data.as_edgedb_target_id().as_edgedb_value()
-
-    def as_edgedb_link_properties(self):
-        return self._data.as_edgedb_link_property()
 
 
 class MultiLink(
