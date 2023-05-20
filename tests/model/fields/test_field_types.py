@@ -347,7 +347,7 @@ def test_json():
     assert model.field.as_db_type() == expected_db_type
     assert isinstance(model.field, str)
     assert isinstance(model.field.as_python_value(), str)
-    assert model.field.data == jsonable_value
+    assert model.field.as_db_value() == jsonable_value
     assert model.field.as_jsonable_value() == jsonable_value
 
 

@@ -59,6 +59,7 @@ __all__ = [
     "BaseUUIDField",
     "BaseListField",
     "BaseLinkField",
+    "NodeEdgeFieldInfo",
     #
     # _field_types
     "Str",
