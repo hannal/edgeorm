@@ -37,9 +37,9 @@ class BaseModel(pydantic.BaseModel):
 class BaseNodeModel(BaseModel):
     @classmethod
     def get_node_name(cls) -> str:
-        if not cls.Config.node_name:
+        if not cls.__config__.node_name:
             raise ValueError(f"required Config.node_name of model: {cls.__name__}")
-        return cls.Config.node_name
+        return cls.__config__.node_name
 
 
 class BaseLinkPropertyModel(BaseModel):

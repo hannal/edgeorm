@@ -1,7 +1,18 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from typing import Mapping, Type, Dict, Any, Optional, Iterable, TypeVar, Iterator, Union
+from typing import (
+    Mapping,
+    Type,
+    Dict,
+    Any,
+    Optional,
+    Iterable,
+    TypeVar,
+    Iterator,
+    Union,
+    Hashable,
+)
 
 from typing_extensions import TYPE_CHECKING
 from pydantic.fields import UndefinedType
@@ -20,12 +31,12 @@ class BaseFilterable:
     pass
 
 
-_KT = TypeVar("_KT")
+_KT = TypeVar("_KT", bound=Hashable)
 _KV = TypeVar("_KV")
 
 
 class ImmutableDict(Mapping[_KT, _KV]):
-    _dict_cls: Type[Dict[Any, Any]]
+    _dict_cls: Type[Dict[_KT, _KV]]
 
     def __init__(self, *args: Any, dict_cls=OrderedDict, **kwargs: Any) -> None:
         self._dict_cls = dict_cls
@@ -42,7 +53,7 @@ class ImmutableDict(Mapping[_KT, _KV]):
     def __contains__(self, key: object) -> bool:
         return key in self._dict
 
-    def copy(self, **kwargs: _KV) -> ImmutableDict[_KT, _KV]:
+    def copy(self, **kwargs) -> ImmutableDict[_KT, _KV]:
         return self.__class__(self, **kwargs)
 
     def __iter__(self) -> Iterator[_KT]:
@@ -59,8 +70,8 @@ class ImmutableDict(Mapping[_KT, _KV]):
             return self._hash
 
         value = 0
-        for key, value in self.items():
-            value ^= hash((key, value))
+        for _key, _value in self.items():
+            value ^= hash((_key, _value))
         self._hash = value
 
         return self._hash

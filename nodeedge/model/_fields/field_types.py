@@ -8,13 +8,13 @@ from typing import (
     Union,
     Optional,
     TypeVar,
-    Tuple as TupleType,
+    cast,
 )
 from decimal import Decimal as _Decimal
 
 from edgedb import DateDuration as _DateDuration
 from edgedb import RelativeDuration as _RelativeDuration
-from typing_extensions import Self
+from typing_extensions import Self, TypeAlias
 from pydantic.typing import is_namedtuple
 from pydantic.errors import PydanticTypeError
 from pydantic.datetime_parse import StrBytesIntFloat, parse_date, parse_datetime, parse_time
@@ -126,7 +126,7 @@ class Int32(ConstrainedInt, BaseField):
 
     @classmethod
     def validate(cls, value: int) -> Self:
-        result: Int32 = cls(value)
+        result = cls(value)
         result._python_value = int(result)
         return result
 
@@ -143,7 +143,7 @@ class Int64(ConstrainedInt, BaseField):
 
     @classmethod
     def validate(cls, value: int) -> Self:
-        result: Int64 = cls(value)
+        result = cls(value)
         result._python_value = int(result)
         return result
 
@@ -209,7 +209,7 @@ class Float64(ConstrainedFloat, BaseField):
 class Decimal(ConstrainedDecimal, BaseField):
     @classmethod
     def validate(cls, value: _Decimal | int | str) -> Self:
-        result = cls(super().validate(value))
+        result = cls(super().validate(cast(_Decimal, value)))
         result._python_value = result
         return result
 
@@ -233,11 +233,12 @@ class Bool(int, BaseField):
         return result
 
 
-class _IsoFormatField(
-    PythonValueFieldMixin[Union[datetime.date, datetime.time, datetime.datetime]]
-):
+_IsoFormattableType: TypeAlias = Union[datetime.date, datetime.time, datetime.datetime]
+
+
+class _IsoFormatField(PythonValueFieldMixin[_IsoFormattableType]):
     def as_jsonable_value(self):
-        return self.as_python_value().isoformat()
+        return cast(_IsoFormattableType, self.as_python_value()).isoformat()
 
 
 class Date(ConstrainedDate, _IsoFormatField, BaseField):
@@ -478,12 +479,6 @@ class DateDuration(ConstrainedStr, BaseField):
 
 
 class Json(ConstrainedStr, BaseField):
-    __slots__ = ("_data",)
-
-    @property
-    def data(self):
-        return self._data
-
     @classmethod
     def __get_validators__(cls):
         yield cls.validate
@@ -491,12 +486,12 @@ class Json(ConstrainedStr, BaseField):
     @classmethod
     def validate(cls, value: str) -> "Json":
         result = cls(value)
-        result._data = json.loads(value)
+        result._db_value = json.loads(value)
         result._python_value = value
         return result
 
     def as_jsonable_value(self):
-        return self.data
+        return self.as_db_value()
 
 
 class UUID1(_UUID1, BaseUUIDField):
@@ -542,7 +537,7 @@ class Bytes(ConstrainedBytes, BaseField):
 Listable_T = TypeVar("Listable_T")
 
 
-class Array(BaseListField[list, Listable_T], BaseField):
+class Array(BaseListField[Listable_T], BaseField):
     _data: list[Listable_T]
 
     @classmethod
@@ -562,7 +557,7 @@ class Array(BaseListField[list, Listable_T], BaseField):
         return result
 
 
-class Set(BaseListField[list, Listable_T], BaseField):
+class Set(BaseListField[Listable_T], BaseField):
     @classmethod
     def __get_validators__(cls):
         yield set_validator
@@ -581,7 +576,7 @@ class Set(BaseListField[list, Listable_T], BaseField):
         return result
 
 
-class Tuple(BaseListField[TupleType, Listable_T], BaseField):
+class Tuple(BaseListField[Listable_T], BaseField):
     @classmethod
     def __get_validators__(cls):
         yield tuple_validator
@@ -599,7 +594,7 @@ class Tuple(BaseListField[TupleType, Listable_T], BaseField):
         return result
 
 
-class NamedTuple(BaseListField[TupleType, Listable_T], BaseField):
+class NamedTuple(BaseListField[Listable_T], BaseField):
     class NamedTupleError(PydanticTypeError):
         msg_template = "value is not a valid namedtuple"
 

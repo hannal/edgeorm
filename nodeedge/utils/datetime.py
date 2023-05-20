@@ -1,7 +1,7 @@
 import re
 import datetime
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, Union, TypeAlias, cast
 
 from typing_extensions import TypedDict
 
@@ -47,9 +47,14 @@ def is_pytz_zone(tz):
     return isinstance(tz, PYTZ_BASE_CLASSES)
 
 
+TimeZoneInfoType: TypeAlias = Union[
+    pytz.tzinfo.StaticTzInfo, pytz.tzinfo.DstTzInfo, datetime.tzinfo
+]
+
+
 def make_aware(
     value: datetime.datetime,
-    timezone: Optional[datetime.tzinfo] = None,
+    timezone: Optional[TimeZoneInfoType] = None,
     is_dst: Optional[bool] = None,
 ):
     if not isinstance(value, datetime.datetime):
@@ -61,12 +66,12 @@ def make_aware(
     timezone = timezone or get_default_timezone()
 
     if is_pytz_zone(timezone):
-        return timezone.localize(value, is_dst=is_dst)
+        return cast(pytz.tzinfo.DstTzInfo, timezone).localize(value, is_dst=is_dst)
     else:
         return value.replace(tzinfo=timezone)
 
 
-def make_naive(value: datetime.datetime, timezone: Optional[datetime.tzinfo] = None):
+def make_naive(value: datetime.datetime, timezone: Optional[TimeZoneInfoType] = None):
     if not isinstance(value, datetime.datetime):
         raise TypeError("value is required as datetime")
 

@@ -4,8 +4,8 @@ import json
 import uuid
 import dataclasses
 from types import EllipsisType
-from typing import TypeVar, Generic, Union, Type, Any, Optional
-from typing_extensions import Self, TYPE_CHECKING
+from typing import TypeVar, Generic, Union, Type, Any, Optional, Sequence, cast
+from typing_extensions import Self, TYPE_CHECKING, TypeAlias
 from edgedb import Object as EdgeDBObject
 from pydantic.fields import Field as _PydanticField
 
@@ -23,6 +23,7 @@ __all__ = [
     "BaseListField",
     "BaseLinkField",
     "DBRawObject",
+    "DBRawObjectType",
     "BaseUUIDField",
     "PythonValueFieldMixin",
     "DbValueFieldMixin",
@@ -48,6 +49,8 @@ if GlobalConfiguration.is_edgedb_backend():
 else:
     DBRawObject = EdgeDBObject
 
+DBRawObjectType: TypeAlias = DBRawObject  # type: ignore
+
 _field_type_map = _backend.field_type_map
 
 PythonValueField_T = TypeVar("PythonValueField_T")
@@ -56,7 +59,7 @@ PythonValueField_T = TypeVar("PythonValueField_T")
 class PythonValueFieldMixin(Generic[PythonValueField_T]):
     _python_value: Union[PythonValueField_T, EllipsisType] = ...
 
-    def as_python_value(self) -> PythonValueField_T:
+    def as_python_value(self) -> Union[Self, PythonValueField_T]:
         if self._python_value is ...:
             return self
         return self._python_value
@@ -68,7 +71,7 @@ DbValueField_T = TypeVar("DbValueField_T")
 class DbValueFieldMixin(Generic[DbValueField_T]):
     _db_value: Union[DbValueField_T, EllipsisType] = ...
 
-    def as_db_value(self) -> DbValueField_T:
+    def as_db_value(self) -> Union[Self, DbValueField_T]:
         if self._db_value is ...:
             return self
         return self._db_value
@@ -79,7 +82,6 @@ class BaseField(BaseFilterable, PythonValueFieldMixin, DbValueFieldMixin):
 
     field_info: FieldInfo
 
-    _backend: str = _backend
     _field_type_map: FieldTypeMap = _field_type_map
 
     _db_link_type = None
@@ -113,11 +115,10 @@ class BaseField(BaseFilterable, PythonValueFieldMixin, DbValueFieldMixin):
 
 
 Listable_T = TypeVar("Listable_T")
-Container_T = TypeVar("Container_T")
 
 
-class BaseListField(Generic[Container_T, Listable_T]):
-    _data: Container_T[Listable_T]
+class BaseListField(Generic[Listable_T]):
+    _data: Sequence[Listable_T]
 
     def __init__(self, value):
         self._data = value
@@ -150,7 +151,7 @@ class BaseListField(Generic[Container_T, Listable_T]):
 
 class BaseUUIDField(BaseField, PythonValueFieldMixin[uuid.UUID], DbValueFieldMixin[str]):
     @classmethod
-    def validate(cls: Type[uuid.UUID], value: str | uuid.UUID):
+    def validate(cls: Type, value: str | uuid.UUID):
         if isinstance(value, uuid.UUID):
             result = cls(value.hex)
         else:
@@ -158,10 +159,10 @@ class BaseUUIDField(BaseField, PythonValueFieldMixin[uuid.UUID], DbValueFieldMix
 
         return result
 
-    def as_python_value(self) -> PythonValueField_T:
+    def as_python_value(self):
         return self
 
-    def as_db_value(self) -> DbValueField_T:
+    def as_db_value(self):
         return str(self.as_python_value())
 
     def as_jsonable_value(self):
@@ -206,7 +207,7 @@ class BaseLinkField(DbValueFieldMixin, Generic[Link_T, LinkProperty_T]):
             if isinstance(link_data, BaseNodeModel) and (
                 not link_property or isinstance(link_property, BaseLinkPropertyModel)
             ):
-                return value
+                return cast(tuple[BaseNodeModel, Union[BaseLinkPropertyModel, None]], value)
 
         raise ValueError(f"invalid Link value type: {type(value)}")
 

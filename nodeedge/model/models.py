@@ -53,7 +53,6 @@ def create_field_params(
 ) -> Dict:
     field_type = _field.type_
 
-
     if isinstance(field_type, ForwardRef):
         pass
     elif is_class(field_type):
@@ -83,7 +82,7 @@ if GlobalConfiguration.is_edgedb_backend():
 
 else:
 
-    class Model(BaseNodeModel, metaclass=AbstractModel):
+    class Model(BaseNodeModel, metaclass=AbstractModel):  # type: ignore[no-redef]
         pass
 
 
