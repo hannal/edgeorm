@@ -6,6 +6,7 @@ authors = ["hannal <kay@hannal.net>"]
 readme = "README.md"
 packages = [
     {include = "nodeedge", from = "./"},
+    {include = "testing", from = "./tests/_testing"},
 ]
 
 [project.urls]
@@ -39,8 +40,11 @@ line-length = 100
 minversion = "7.1.0"
 addopts = "-vv --strict-markers --tb=short --no-cov-on-fail --asyncio-mode=auto -p no:warnings --doctest-modules"
 python_files = ["tests.py", "test_*.py"]
-testpaths = ["tests"]
-pythonpath = ["./"]
+testpaths = [
+    "tests/backends",
+    "tests/model",
+]
+pythonpath = ["./", "./tests/_testing"]
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning:etcd3.*:",
