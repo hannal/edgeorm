@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Type, Any, Optional, Dict, Union
+from typing import Type, Optional, Union, cast, Iterable
 
-from typing_extensions import Self, TYPE_CHECKING
+from typing_extensions import TYPE_CHECKING
 from pydantic.fields import ModelField as _PydanticModelField
 from pydantic.fields import FieldInfo as _PydanticFieldInfo
 
@@ -48,6 +48,6 @@ def substitute_field_info(
 ) -> FieldInfo:
     field_info = FieldInfo(nodeedge=nodeedge)
     if origin:
-        field_info.update_from_config(dict(origin.__repr_args__()))
+        field_info.update_from_config(dict(cast(Iterable, origin.__repr_args__())))
 
     return field_info

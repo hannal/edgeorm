@@ -4,15 +4,14 @@ import json
 import uuid
 import dataclasses
 from types import EllipsisType
-from typing import TypeVar, Generic, Union, Type, Any, Optional, overload
+from typing import TypeVar, Generic, Union, Type, Any, Optional
 from typing_extensions import Self, TYPE_CHECKING
 from edgedb import Object as EdgeDBObject
-from pydantic.fields import Field as _PydanticField, FieldInfo as _PydanticFieldInfo
+from pydantic.fields import Field as _PydanticField
 
 from nodeedge import GlobalConfiguration, Undefined
-from nodeedge.backends import BackendLoader
-from nodeedge.backends.base import FieldTypeMap
-from nodeedge.model._base_model import BaseNodeModel, BaseLinkPropertyModel
+from nodeedge.backends import BackendLoader, FieldTypeMap
+from nodeedge.model import BaseNodeModel, BaseLinkPropertyModel
 from nodeedge.types import BaseFilterable, FieldInfo
 from ...utils.typing import annotate_from
 

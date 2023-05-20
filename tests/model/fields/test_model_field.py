@@ -1,8 +1,6 @@
-import pytest
 import pydantic
 
-from nodeedge import GlobalConfiguration
-from nodeedge.model import fields, Model, LinkPropertyModel
+from nodeedge.model import fields, Model
 from nodeedge.model.fields import NodeEdgeFieldInfo
 from nodeedge.types import FieldInfo
 from _testing.decorators import skip_if_not_edgedb

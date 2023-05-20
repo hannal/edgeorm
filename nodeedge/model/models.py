@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Type, Any
+from typing import Dict, Type, Any, ForwardRef
 
 import pydantic
 from pydantic import main as pydantic_main
@@ -10,6 +10,7 @@ from nodeedge import GlobalConfiguration
 
 from ._fields.base_fields import field
 from ._fields.field_types import UUID1
+from ._fields.link_field_types import Link, MultiLink
 
 __all__ = [
     "AbstractModel",
@@ -17,8 +18,9 @@ __all__ = [
     "LinkPropertyModel",
 ]
 
-from ._base_model import BaseNodeModel, BaseLinkPropertyModel
+from ._base_model import BaseModel, BaseNodeModel, BaseLinkPropertyModel
 from ._fields.model_field import ModelField
+from ..utils.typing import is_class
 
 
 class AbstractModel(pydantic_main.ModelMetaclass):
@@ -34,22 +36,7 @@ class AbstractModel(pydantic_main.ModelMetaclass):
         for name, value in hints.items():
             _field: pydantic.fields.ModelField = model_class.__fields__[name]
 
-            field_type = _field.annotation
-
-            field_params = {
-                "type_": field_type,
-                "class_validators": _field.class_validators,
-                "model_config": _field.model_config,
-                "default": _field.default,
-                "default_factory": _field.default_factory,
-                "final": _field.final,
-                "alias": _field.alias,
-                "field_info": _field.field_info,
-                "name": name,
-                "required": _field.required,
-                # nodeedge
-                "model": model_class,
-            }
+            field_params = create_field_params(name, _field, model_class)
 
             model_class.__fields__[name] = ModelField(**field_params)
 
@@ -59,6 +46,34 @@ class AbstractModel(pydantic_main.ModelMetaclass):
         model_class.__hints__ = hints
         model_class.__annotations__ = hints
         return model_class
+
+
+def create_field_params(
+    name: str, _field: pydantic.fields.ModelField, model_class: Type[BaseModel]
+) -> Dict:
+    field_type = _field.type_
+
+
+    if isinstance(field_type, ForwardRef):
+        pass
+    elif is_class(field_type):
+        issubclass(field_type, Link)
+        issubclass(field_type, MultiLink)
+
+    return {
+        "type_": field_type,
+        "class_validators": _field.class_validators,
+        "model_config": _field.model_config,
+        "default": _field.default,
+        "default_factory": _field.default_factory,
+        "final": _field.final,
+        "alias": _field.alias,
+        "field_info": _field.field_info,
+        "name": name,
+        "required": _field.required,
+        # nodeedge
+        "model": model_class,
+    }
 
 
 if GlobalConfiguration.is_edgedb_backend():

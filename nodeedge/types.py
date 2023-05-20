@@ -10,7 +10,6 @@ from pydantic.fields import FieldInfo as _PydanticFieldInfo
 from .constants import Undefined
 
 if TYPE_CHECKING:
-    from .model import BaseNodeModel
     from .model.fields import NodeEdgeFieldInfo
 
 
