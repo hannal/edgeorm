@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from functools import cached_property
 from importlib import import_module
-from typing import Union
+from typing import Union, cast
+
 
 from nodeedge.backends.base import FieldTypeMap
 
@@ -40,4 +41,4 @@ class BackendLoader(metaclass=BaseBackendLoader):
         if not self._field_type_map:
             mod = import_module(self.namespace, package=self.package)
             self._field_type_map = mod.type_map
-        return self._field_type_map
+        return cast(FieldTypeMap, self._field_type_map)

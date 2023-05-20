@@ -1,0 +1,55 @@
+default_stages: ["commit", "push", "merge-commit"]
+
+fail_fast: false
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: check-ast
+      - id: fix-byte-order-marker
+      - id: check-case-conflict
+      - id: check-json
+        exclude: ^.(devcontainer|vscode)\/.+.json$
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-xml
+      - id: check-yaml
+      - id: debug-statements
+      - id: detect-private-key
+      - id: detect-aws-credentials
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/dhruvmanila/remove-print-statements
+    rev: "v0.5.1"
+    hooks:
+      - id: remove-print-statements
+        args: ["--verbose"]
+
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: "v0.0.269"
+    hooks:
+      - id: ruff
+        args: [--config, pyproject.toml, --fix, --exit-non-zero-on-fix]
+
+  - repo: https://github.com/asottile/yesqa
+    rev: v1.4.0
+    hooks:
+      - id: yesqa
+
+  - repo: local
+    hooks:
+#      - id: black
+#        name: Black
+#        entry: poetry run black
+#        language: system
+#        types: [python]
+
+      - id: mypy
+        name: MyPy
+        entry: poetry run mypy
+        language: system
+        files: ^nodeedge\/.+.py$
+        types: [python]

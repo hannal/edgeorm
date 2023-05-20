@@ -15,6 +15,7 @@ from .base_fields import (
     Link_T,
     LinkProperty_T,
     DBRawObject,
+    DBRawObjectType,
 )
 
 
@@ -26,7 +27,7 @@ __all__ = [
 ]
 
 
-LinkDataType: TypeAlias = Union[BaseNodeModel, uuid.UUID, DBRawObject]
+LinkDataType: TypeAlias = Union[BaseNodeModel, uuid.UUID, DBRawObjectType]
 LinkPropertyDataType: TypeAlias = Union[BaseLinkPropertyModel, None]
 
 
@@ -69,8 +70,8 @@ class Link(BaseLinkField[Link_T, LinkProperty_T], BaseField):
 
     @classmethod
     def validate(cls, value: Any) -> Self:
-        link_data: Union[BaseNodeModel, uuid.UUID, DBRawObject]
-        link_property: Optional[BaseLinkPropertyModel] = None
+        link_data: LinkDataType
+        link_property: LinkPropertyDataType = None
         if isinstance(value, (list, tuple)):
             if len(value) != 2:
                 raise ValueError(
@@ -93,13 +94,13 @@ class Link(BaseLinkField[Link_T, LinkProperty_T], BaseField):
 
 class MultiLink(
     BaseLinkField[Link_T, LinkProperty_T],
-    BaseListField[List, Link[Link_T, LinkProperty_T]],
+    BaseListField[Link[Link_T, LinkProperty_T]],
     BaseField,
 ):
     _db_value: List[Link[Link_T, LinkProperty_T]]
 
     def __init__(self, value: List):
-        _db_value = [Link.validate(v) for v in value]
+        _db_value: List[Link] = [Link.validate(v) for v in value]
         self._db_value = _db_value
         super().__init__(_db_value)
 

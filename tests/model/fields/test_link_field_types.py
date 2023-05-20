@@ -1,11 +1,5 @@
-import pytest
-
-from nodeedge import GlobalConfiguration
 from nodeedge.model import fields, Model, LinkPropertyModel
-
-is_backend_edgedb = GlobalConfiguration.is_edgedb_backend()
-
-skip_if_not_edgedb = pytest.mark.skipif(not is_backend_edgedb, reason="not edgedb backend")
+from _testing.decorators import skip_if_not_edgedb
 
 
 class TargetModel(Model):
