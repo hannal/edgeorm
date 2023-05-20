@@ -53,7 +53,7 @@ class AbstractModel(pydantic_main.ModelMetaclass):
 
 class Config(pydantic.BaseConfig):
     # pydantic configurations
-    orm_model = True
+    orm_mode = True
     is_model_field_value_type_fields = False
 
     # nodeedge configurations
