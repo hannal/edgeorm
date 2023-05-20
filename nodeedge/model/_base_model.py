@@ -1,54 +1,11 @@
 from __future__ import annotations
 
-from typing import Dict, Type, Any
+from typing import Any
 
 import pydantic
-from pydantic import main as pydantic_main
-from pydantic.typing import resolve_annotations, update_model_forward_refs
+from pydantic.typing import update_model_forward_refs
 
-from ._fields.model_field import ModelField  # noqa
-
-
-__all__ = ["AbstractModel", "BaseModel", "BaseNodeModel", "BaseLinkPropertyModel", "Config"]
-
-
-class AbstractModel(pydantic_main.ModelMetaclass):
-    def __new__(mcs, cls_name: str, bases, namespace, **kwargs):
-        # noinspection PyTypeChecker
-        model_class = super().__new__(mcs, cls_name, bases, namespace=namespace, **kwargs)
-
-        hints: Dict[str, Type[Any]] = resolve_annotations(
-            namespace.get("__annotations__", {}),
-            namespace.get("__module__"),
-        )
-
-        model_class.__hints__ = hints
-        model_class.__annotations__ = hints
-
-        for name, value in hints.items():
-            field: pydantic.fields.ModelField = model_class.__fields__[name]
-
-            field_type = field.annotation
-
-            field_params = {
-                "type_": field_type,
-                "class_validators": field.class_validators,
-                "model_config": field.model_config,
-                "default": field.default,
-                "default_factory": field.default_factory,
-                "final": field.final,
-                "alias": field.alias,
-                "field_info": field.field_info,
-                "name": name,
-                "required": field.required,
-            }
-
-            model_class.__fields__[name] = ModelField(**field_params)
-
-        for k, f in model_class.__fields__.items():
-            setattr(model_class, k, f)
-
-        return model_class
+__all__ = ["BaseModel", "BaseNodeModel", "BaseLinkPropertyModel", "Config"]
 
 
 class Config(pydantic.BaseConfig):

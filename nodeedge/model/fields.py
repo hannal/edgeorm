@@ -1,6 +1,11 @@
-from pydantic import Field
-
-from ._fields.base_fields import BaseField, BaseListField, BaseUUIDField, BaseLinkField
+from ._fields.base_fields import (
+    BaseField,
+    BaseListField,
+    BaseUUIDField,
+    BaseLinkField,
+    NodeEdgeFieldInfo,
+    field,
+)
 from ._fields.field_types import (
     Str,
     Int16,
@@ -34,14 +39,13 @@ from ._fields.model_field import ModelField
 
 __all__ = [
     #
-    # alias pydantic
-    "Field",
-    #
     # ._fields.base_fields
+    "field",
     "BaseField",
     "BaseUUIDField",
     "BaseListField",
     "BaseLinkField",
+    "NodeEdgeFieldInfo",
     #
     # _field_types
     "Str",

@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from typing import Mapping, Type, Dict, Any, Optional, Iterable, TypeVar, Iterator
+from typing import Mapping, Type, Dict, Any, Optional, Iterable, TypeVar, Iterator, Union
+
+from typing_extensions import TYPE_CHECKING
+from pydantic.fields import UndefinedType
+from pydantic.fields import FieldInfo as _PydanticFieldInfo
+
+from .constants import Undefined
+
+if TYPE_CHECKING:
+    from .model import BaseNodeModel
+    from .model.fields import NodeEdgeFieldInfo
 
 
-__all__ = ["BaseFilterable", "ImmutableDict", "ValueClass"]
+__all__ = ["BaseFilterable", "ImmutableDict", "ValueClass", "UndefinedType", "FieldInfo"]
 
 
 class BaseFilterable:
@@ -24,7 +34,7 @@ class ImmutableDict(Mapping[_KT, _KV]):
         self._hash: Optional[int] = None
 
     @classmethod
-    def fromkeys(cls, seq: Iterable[_KT], value: Optional[_KV] = None) -> "immutabledict[_KT, _KV]":
+    def fromkeys(cls, seq: Iterable[_KT], value: Optional[_KV] = None) -> ImmutableDict[_KT, _KV]:
         return cls(dict.fromkeys(seq, value))
 
     def __getitem__(self, key: _KT) -> _KV:
@@ -76,4 +86,19 @@ class ImmutableDict(Mapping[_KT, _KV]):
 
 class ValueClass(type):
     def __call__(cls, *args, **kwargs):
-        raise TypeError("GlobalVariables cannot be instantiated")
+        raise TypeError(f"{cls.__name__} cannot be instantiated")
+
+
+class FieldInfo(_PydanticFieldInfo):
+    def __init__(
+        self,
+        default: Any = Undefined,
+        *,
+        nodeedge: Optional[NodeEdgeFieldInfo] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(default=default, nodeedge=nodeedge, **kwargs)
+
+    @property
+    def nodeedge(self) -> Union[NodeEdgeFieldInfo, None]:
+        return self.extra.get("nodeedge")

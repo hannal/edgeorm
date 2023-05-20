@@ -2,28 +2,24 @@ from __future__ import annotations
 
 import json
 import uuid
+import dataclasses
 from types import EllipsisType
-from typing import TypeVar, Generic, Union, Type, Any
+from typing import TypeVar, Generic, Union, Type, Any, Optional, overload
 from typing_extensions import Self, TYPE_CHECKING
 from edgedb import Object as EdgeDBObject
+from pydantic.fields import Field as _PydanticField, FieldInfo as _PydanticFieldInfo
 
-from nodeedge import GlobalConfiguration
+from nodeedge import GlobalConfiguration, Undefined
 from nodeedge.backends import BackendLoader
 from nodeedge.backends.base import FieldTypeMap
 from nodeedge.model._base_model import BaseNodeModel, BaseLinkPropertyModel
-from nodeedge.types import BaseFilterable
-
-if TYPE_CHECKING:
-    from .._model import Model, LinkPropertyModel
-
-    Link_T = TypeVar("Link_T", bound=Model)
-    LinkProperty_T = TypeVar("LinkProperty_T", bound=LinkPropertyModel)
-else:
-    Link_T = TypeVar("Link_T", bound=BaseNodeModel)
-    LinkProperty_T = TypeVar("LinkProperty_T", bound=BaseLinkPropertyModel)
+from nodeedge.types import BaseFilterable, FieldInfo
+from ...utils.typing import annotate_from
 
 
 __all__ = [
+    "field",
+    "NodeEdgeFieldInfo",
     "BaseField",
     "BaseListField",
     "BaseLinkField",
@@ -36,6 +32,14 @@ __all__ = [
     "Link_T",
     "LinkProperty_T",
 ]
+
+
+if TYPE_CHECKING:
+    Link_T = TypeVar("Link_T", bound=BaseNodeModel)
+    LinkProperty_T = TypeVar("LinkProperty_T", bound=BaseLinkPropertyModel)
+else:
+    Link_T = TypeVar("Link_T", bound=BaseNodeModel)
+    LinkProperty_T = TypeVar("LinkProperty_T", bound=BaseLinkPropertyModel)
 
 
 _backend = BackendLoader(GlobalConfiguration.BACKEND)
@@ -73,6 +77,8 @@ class DbValueFieldMixin(Generic[DbValueField_T]):
 
 class BaseField(BaseFilterable, PythonValueFieldMixin, DbValueFieldMixin):
     """Model을 정의할 때 사용하는 model field type의 base."""
+
+    field_info: FieldInfo
 
     _backend: str = _backend
     _field_type_map: FieldTypeMap = _field_type_map
@@ -207,3 +213,38 @@ class BaseLinkField(DbValueFieldMixin, Generic[Link_T, LinkProperty_T]):
 
     def as_jsonable_value(self):
         return json.dumps(self.as_db_value())
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class NodeEdgeFieldInfo:
+    model: Type[BaseNodeModel]
+    link_property_model: Optional[Type[BaseLinkPropertyModel]] = dataclasses.field(default=None)
+
+    @property
+    def is_single_link(self):
+        return False
+
+    @property
+    def is_multi_link(self):
+        return False
+
+
+@annotate_from(_PydanticField)
+def field(
+    default: Any = Undefined,
+    *,
+    # for nodeedge
+    model: Optional[Type[BaseNodeModel]] = None,
+    # for pydantic
+    **kwargs,
+) -> FieldInfo:
+    nodeedge = None
+
+    if model:
+        nodeedge = NodeEdgeFieldInfo(
+            model=model,
+        )
+
+    field_info = FieldInfo(default, nodeedge=nodeedge, **kwargs)
+    field_info._validate()
+    return field_info
