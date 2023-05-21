@@ -1,12 +1,29 @@
 import abc
 import inspect
-from typing import FrozenSet, Tuple, Optional, Dict, Union, List, Set
+from types import EllipsisType
+from typing import (
+    FrozenSet,
+    Tuple,
+    Optional,
+    Dict,
+    Union,
+    List,
+    Set,
+    TypeVar,
+    Generic,
+    Any,
+    Type,
+    cast,
+)
 
 from typing_extensions import Self
+
+from nodeedge.utils.typing import get_origin
 
 
 __all__ = [
     "Cloneable",
+    "Valueable",
 ]
 
 
@@ -28,9 +45,13 @@ class Cloneable(abc.ABC):
         for name, param in sig.parameters.items():
             if name == "self":
                 continue
-            if param.kind in [param.POSITIONAL_ONLY, param.VAR_POSITIONAL]:
+            if param.kind in [
+                param.POSITIONAL_ONLY,
+                param.VAR_POSITIONAL,
+                param.POSITIONAL_OR_KEYWORD,
+            ]:
                 init_args.append(name)
-            elif param.kind in [param.VAR_KEYWORD, param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY]:
+            elif param.kind in [param.VAR_KEYWORD, param.KEYWORD_ONLY]:
                 init_kwargs.add(name)
 
         cls._init_args = tuple(init_args)
@@ -59,6 +80,8 @@ class Cloneable(abc.ABC):
                 init_args.append(getattr(self, name))
 
         for name in self._init_kwargs:
+            if name in args:
+                continue
             if name in kwargs:
                 init_kwargs[name] = kwargs[name]
             else:
@@ -75,3 +98,65 @@ class Cloneable(abc.ABC):
             setattr(obj, attr, value)
 
         return obj
+
+
+_Valueable_T = TypeVar("_Valueable_T")
+
+
+class Valueable(Cloneable, abc.ABC, Generic[_Valueable_T]):
+    __slots__ = ("_mixin_value",)
+
+    _mixin_value: _Valueable_T
+    _mixin_value_type: Union[FrozenSet[Type], EllipsisType, None] = ...
+
+    def __init__(self, value: _Valueable_T) -> None:
+        self._set_value_type()
+        self._check_value_type(value)
+        self._mixin_value = value
+
+    def _set_value_type(self):
+        if self._mixin_value_type is not ...:
+            return None
+        for _base in getattr(self, "__orig_bases__", ()):
+            if get_origin(_base) is Valueable:
+                self._mixin_value_type = frozenset(_base.__args__)
+                return None
+
+        self._mixin_value_type = None
+        return None
+
+    def _check_value_type(self, value: Any):
+        if self._mixin_value_type is ...:
+            self._set_value_type()
+        if not self._mixin_value_type:
+            return None
+        if type(value) not in cast(frozenset, self._mixin_value_type):
+            raise TypeError(f"bad operand type for bind: {type(value).__name__!r}")
+
+    @property
+    def value(self) -> _Valueable_T:
+        return self._mixin_value
+
+    @value.setter
+    def value(self, value: Any) -> Self:
+        return self.bind(value)
+
+    def bind(self, value: _Valueable_T) -> Self:
+        self._check_value_type(value)
+        return self._clone(args={"value": value})
+
+    set = bind
+
+    def __pos__(self) -> Self:
+        if hasattr(self._mixin_value, "__pos__"):
+            return self._clone(args={"value": +self._mixin_value})
+        raise TypeError(f"bad operand type for unary +: {type(self._mixin_value).__name__!r}")
+
+    positive = __pos__
+
+    def __neg__(self) -> Self:
+        if hasattr(self._mixin_value, "__neg__"):
+            return self._clone(args={"value": -self._mixin_value})
+        raise TypeError(f"bad operand type for unary -: {type(self._mixin_value).__name__!r}")
+
+    negative = __neg__
