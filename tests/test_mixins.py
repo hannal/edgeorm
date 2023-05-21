@@ -41,16 +41,26 @@ def test_cloneable():
 
 
 def test_valueable():
-    class Sample(Valueable[str]):
+    class Sample(Valueable[int]):
         pass
 
     with pytest.raises(TypeError):
-        Sample(10)
+        Sample("hello")
 
-    origin = Sample("hello")
-    assert origin.value == "hello"
+    origin = Sample(10)
+    assert origin.value == 10
 
-    obj = origin.bind("world")
+    obj = origin.set_value(20)
     assert origin is not obj
     assert origin.value != obj.value
-    assert obj.value == "world"
+    assert obj.value == 20
+
+    obj2 = -obj
+    assert obj is not obj2
+    assert obj.value == 20
+    assert obj2.value == -20
+
+    obj3 = -obj2
+    assert obj2 is not obj3
+    assert obj3.value == 20
+    assert obj2.value == -20

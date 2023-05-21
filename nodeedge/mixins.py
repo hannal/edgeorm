@@ -137,15 +137,9 @@ class Valueable(Cloneable, abc.ABC, Generic[_Valueable_T]):
     def value(self) -> _Valueable_T:
         return self._mixin_value
 
-    @value.setter
-    def value(self, value: Any) -> Self:
-        return self.bind(value)
-
-    def bind(self, value: _Valueable_T) -> Self:
+    def set_value(self, value: _Valueable_T) -> Self:
         self._check_value_type(value)
         return self._clone(args={"value": value})
-
-    set = bind
 
     def __pos__(self) -> Self:
         if hasattr(self._mixin_value, "__pos__"):
