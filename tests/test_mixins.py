@@ -13,12 +13,13 @@ from nodeedge.mixins import (
     Composition,
     CompositableItem,
     CompositionListener,
+    Pathable,
 )
 
 
 def test_cloneable():
-    class Sample(Cloneable):
-        __cloning_attrs = frozenset(["name2"])
+    class Sample(Pathable, Cloneable):
+        __cloning_attrs__ = frozenset(["name2"])
 
         value: int
         value2: int
@@ -35,8 +36,8 @@ def test_cloneable():
             return self._clone(attrs={"name": value})
 
     origin = Sample(10, 20)
-    assert origin._Cloneable__init_args == ("value", "value2")
-    assert origin._Cloneable__init_kwargs == frozenset(["value3"])
+    assert Sample.__init_args__ == ("value", "value2")
+    assert Sample.__init_kwargs__ == frozenset(["value3"])
     assert origin.value == 10
     assert origin.value2 == 20
     assert origin.value3 == 0
@@ -53,7 +54,9 @@ def test_cloneable():
 
 def test_valueable():
     class Sample(Valueable[int]):
-        pass
+        def __init__(self, value: int) -> None:
+            self.check_value(value)
+            self.__value__ = value
 
     with pytest.raises(TypeError):
         Sample("hello")
@@ -128,7 +131,7 @@ def test_simple_composition_map(composition_listener):
     listener, mock, queries = composition_listener
 
     class CompositedItem(Composition):
-        _listener = listener
+        __listener__ = listener
 
         def on_composite(self, depth=0, direction=""):
             return f"composited<{depth}, {direction}>"
@@ -143,7 +146,7 @@ def test_simple_composition_map(composition_listener):
     item1 = Item("hello")
     item2 = Item("world")
     composited = item1 & item2
-    composited.map()
+    composited.map_composition()
 
     # fmt: off
     expected = [
@@ -166,7 +169,7 @@ def test_complex_composition_map(composition_listener):
     listener, mock, queries = composition_listener
 
     class CompositedItem(Composition):
-        _listener = listener
+        __listener__ = listener
         pass
 
     @dataclasses.dataclass(frozen=True)
@@ -203,10 +206,14 @@ def test_complex_composition_map(composition_listener):
     ]
     # fmt: on
 
-    composited.map()
+    composited.map_composition()
 
     mock.on_composite.assert_called()
     mock.on_begin_wrap.assert_called()
     mock.on_finish_wrap.assert_called()
 
     assert queries == expected
+
+
+def test_pathable():
+    pass
