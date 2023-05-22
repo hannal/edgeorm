@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import abc
+import dataclasses
+import enum as py_enum
 from collections import OrderedDict
+from types import new_class
 from typing import (
     Mapping,
     Type,
@@ -12,18 +16,30 @@ from typing import (
     Iterator,
     Union,
     Hashable,
+    cast,
 )
 
-from typing_extensions import TYPE_CHECKING
-from pydantic.fields import UndefinedType
 from pydantic.fields import FieldInfo as _PydanticFieldInfo
+from pydantic.fields import UndefinedType
+from typing_extensions import TYPE_CHECKING
 
-from .constants import Undefined
+from ._enum import JsonableEnum, FindableEnum
+from ..constants import Undefined
 
 if TYPE_CHECKING:
-    from .model._fields.base_fields import NodeEdgeFieldInfo
+    from ..model.fields import NodeEdgeFieldInfo
 
-__all__ = ["BaseFilterable", "ImmutableDict", "ValueClass", "UndefinedType", "FieldInfo"]
+
+__all__ = [
+    "BaseFilterable",
+    "ImmutableDict",
+    "ValueClass",
+    "UndefinedType",
+    "FieldInfo",
+    "Query",
+    "Jsonable",
+    "enum",
+]
 
 
 class BaseFilterable:
@@ -111,3 +127,60 @@ class FieldInfo(_PydanticFieldInfo):
     @property
     def nodeedge(self) -> Union[NodeEdgeFieldInfo, None]:
         return self.extra.get("nodeedge")
+
+
+@dataclasses.dataclass
+class Query:
+    pass
+
+
+class Jsonable:
+    @abc.abstractmethod
+    def as_jsonable_value(self) -> Any:
+        raise NotImplementedError
+
+
+T_EnumClass = TypeVar("T_EnumClass", bound=Type[py_enum.Enum])
+T_TargetEnum = TypeVar("T_TargetEnum", bound=Type)
+
+
+class _BaseEnum(JsonableEnum, FindableEnum):
+    pass
+
+
+class enum:
+    Flag = py_enum.Flag
+    IntFlag = py_enum.IntFlag
+    Enum = py_enum.Enum
+    IntEnum = py_enum.IntEnum
+    StrEnum = py_enum.StrEnum
+
+    class Auto(py_enum.auto, _BaseEnum):  # type: ignore
+        def as_jsonable_value(self) -> Any:
+            return self.name
+
+    @classmethod
+    def create(
+        cls,
+        target_class: Optional[T_TargetEnum] = None,
+        *,
+        enum_class: T_EnumClass,
+    ):
+        def wrap(_target_cls: T_TargetEnum) -> T_TargetEnum:
+            members = []
+            for k, v in _target_cls.__annotations__.items():
+                if v is cls.Auto:
+                    members.append((k, py_enum.auto()))
+                elif isinstance(v, cls.Auto):
+                    members.append((k, py_enum.auto()))
+                else:
+                    members.append((k, v))
+
+            base = new_class(_target_cls.__name__, (_target_cls, _BaseEnum), {})
+
+            result = enum_class(_target_cls.__name__, members, type=base)  # type: ignore
+            return cast(T_TargetEnum, result)
+
+        if target_class:
+            return wrap(target_class)
+        return wrap
