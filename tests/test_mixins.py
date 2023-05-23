@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from nodeedge.constants import EnumOperand
+from nodeedge.query import EnumOperand
 from nodeedge.mixins import (
     Cloneable,
     Valueable,
