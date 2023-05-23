@@ -6,6 +6,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from nodeedge.exceptions import InvalidPathError
+from nodeedge.model import Model
+from nodeedge.model import fields
 from nodeedge.query import EnumOperand
 from nodeedge.mixins import (
     Cloneable,
@@ -53,7 +56,7 @@ def test_cloneable():
 
 
 def test_valueable():
-    class Sample(Valueable[int]):
+    class Sample(Cloneable, Valueable[int]):
         def __init__(self, value: int) -> None:
             self.check_value(value)
             self.__value__ = value
@@ -216,4 +219,64 @@ def test_complex_composition_map(composition_listener):
 
 
 def test_pathable():
-    pass
+    class Sample1(Cloneable, Pathable):
+        name = 1
+
+    class Sample2(Cloneable, Pathable):
+        name = 2
+
+    obj1 = Sample1()
+    obj2 = Sample2()
+
+    path = obj1 >> obj2
+    assert path.has_path
+    assert not obj1.has_path
+    assert not obj2.has_path
+    assert path.__current__ == obj1
+    assert path.__forward__ == obj2
+    assert path.__backward__ is None
+
+
+def test_make_path_for_model_field():
+    class SampleModel1(Model):
+        name: fields.Str
+
+    class SampleModel2(Model):
+        name: fields.Str
+        link_to: fields.Link[SampleModel1, None]
+
+    SampleModel2.update_forward_refs(SampleModel1=SampleModel1)
+
+    obj1 = SampleModel1(name="hello")
+    obj2 = SampleModel2(name="world", link_to=obj1)
+
+    with pytest.raises(TypeError) as exc:
+        obj1 >> obj2
+
+    assert "right operand of '>>'" in str(exc.value)
+
+    with pytest.raises(InvalidPathError):
+        SampleModel2.link_to >> obj1
+
+    with pytest.raises(InvalidPathError):
+        SampleModel2.link_to >> obj1.name
+
+    path = SampleModel2.link_to >> SampleModel1.name
+    assert path.has_path
+    assert not obj1.has_path
+    assert not obj2.has_path
+    assert path.current_path == SampleModel2.link_to
+    assert path.forward_path == SampleModel1.name
+    assert path.backward_path is None
+
+    class SampleModel3(Model):
+        name: fields.Str
+        path_to: fields.Link[SampleModel2, None]
+
+    SampleModel3.update_forward_refs(SampleModel2=SampleModel2)
+
+    path = SampleModel3.path_to >> SampleModel2.link_to >> SampleModel2.name
+    assert path.has_path
+    assert path.backward_path == SampleModel3.path_to
+    assert path.current_path == SampleModel2.link_to
+    assert path.forward_path == SampleModel2.name
