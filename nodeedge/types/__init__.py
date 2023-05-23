@@ -144,20 +144,58 @@ T_EnumClass = TypeVar("T_EnumClass", bound=Type[py_enum.Enum])
 T_TargetEnum = TypeVar("T_TargetEnum", bound=Type)
 
 
-class _BaseEnum(JsonableEnum, FindableEnum):
+class _BaseEnum(JsonableEnum, FindableEnum, py_enum.Enum):
     pass
 
 
 class enum:
-    Flag = py_enum.Flag
-    IntFlag = py_enum.IntFlag
-    Enum = py_enum.Enum
-    IntEnum = py_enum.IntEnum
-    StrEnum = py_enum.StrEnum
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        raise TypeError("enum() is not intended to be instantiated directly.")
+
+    class Flag(py_enum.Flag, _BaseEnum):
+        def __and__(self, other: Any) -> Any:
+            return super().__and__(other)
+
+        __rand__ = __and__
+
+        def __or__(self, other: Any) -> Any:
+            return super().__or__(other)
+
+        __ror__ = __or__
+
+    class IntFlag(py_enum.IntFlag, _BaseEnum):  # type: ignore
+        def __and__(self, other: Any) -> Any:
+            return super().__and__(other)
+
+        __rand__ = __and__
+
+        def __or__(self, other: Any) -> Any:
+            return super().__or__(other)
+
+        __ror__ = __or__
+
+    class Enum(_BaseEnum):
+        pass
+
+    class IntEnum(py_enum.IntEnum, _BaseEnum):
+        pass
+
+    class StrEnum(py_enum.StrEnum, _BaseEnum):
+        pass
+
+    class BaseEnum(_BaseEnum):
+        pass
 
     class Auto(py_enum.auto, _BaseEnum):  # type: ignore
         def as_jsonable_value(self) -> Any:
             return self.name
+
+        def __and__(self, other: Any) -> Any:
+            return super().__and__(other)
+
+    @classmethod
+    def auto(cls, *args, **kwargs):
+        return cls.Auto(*args, **kwargs)
 
     @classmethod
     def create(
