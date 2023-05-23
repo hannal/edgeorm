@@ -14,8 +14,10 @@ from typing import (
     Iterable,
     TypeVar,
     Iterator,
+    TypeAlias,
     Union,
     Hashable,
+    Literal,
     cast,
 )
 
@@ -39,6 +41,7 @@ __all__ = [
     "Query",
     "Jsonable",
     "enum",
+    "PathDirectionType",
 ]
 
 
@@ -222,3 +225,6 @@ class enum:
         if target_class:
             return wrap(target_class)
         return wrap
+
+
+PathDirectionType: TypeAlias = Literal["current", "forward", "backward"]

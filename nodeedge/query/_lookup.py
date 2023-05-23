@@ -29,6 +29,9 @@ class EnumLookupExpression(enum.Flag):
             EnumLookupExpression.ILIKE,
         )
 
+    def can_negate_expr(self):
+        return self in self.allowed_negate_expr()
+
     @property
     def is_negate_expr(self):
         return self & self.NOT == self.NOT

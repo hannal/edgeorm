@@ -3,7 +3,6 @@ from __future__ import annotations
 import abc
 import dataclasses
 import inspect
-from functools import cached_property
 from types import EllipsisType
 from typing import (
     FrozenSet,
@@ -24,8 +23,11 @@ from typing import (
 
 from typing_extensions import Self, TypeAlias
 
-from nodeedge.constants import EnumOperand
-from nodeedge.utils.typing import get_origin, is_subclass
+from nodeedge.constants import Undefined
+from nodeedge.exceptions import InvalidPathError
+from nodeedge.query import EnumOperand, EnumLookupExpression
+from nodeedge.types import PathDirectionType, UndefinedType
+from nodeedge.utils.typing import get_origin, is_subclass, is_class
 
 
 __all__ = [
@@ -35,22 +37,34 @@ __all__ = [
     "CompositionListener",
     "Composition",
     "Pathable",
+    "Filterable",
 ]
 
 
+_BUILD_IN_ATTRS = frozenset(dir(object) + dir(type))
+
+_CloningAttrsType: TypeAlias = Union[FrozenSet[str], Tuple[str, ...]]
+
+
 class Cloneable(abc.ABC):
-    __cloning_attrs__: Union[FrozenSet[str], Tuple[str, ...]] = frozenset()
+    __is_mixin__ = True
+    __allow_mixin_operation__ = True
+    __cloning_attrs__: _CloningAttrsType = frozenset(["__is_mixin__", "__allow_mixin_operation__"])
     __init_args__: Tuple[str, ...] = ()
     __init_kwargs__: FrozenSet[str] = frozenset()
+    __cloning_operator__: Union[Callable[[Self], Self], None] = None
 
     def __init_subclass__(cls, **kwargs):
         if cls is Cloneable:
             return super().__init_subclass__(**kwargs)
 
-        _extend_cloning_attrs(cls)
-        _extend_cloning_args(cls)
+        if getattr(cls, "__allow_mixin_operation__", True):
+            _extend_cloning_attrs(cls)
+            _extend_cloning_args(cls)
 
         return super().__init_subclass__(**kwargs)
+
+    __skip_arg_names = frozenset(["__pydantic_self__"])
 
     def _clone(
         self,
@@ -67,12 +81,16 @@ class Cloneable(abc.ABC):
         attrs = attrs or {}
 
         for name in self.__init_args__:
+            if name in self.__skip_arg_names:
+                continue
             if name in args:
                 init_args.append(args[name])
             else:
                 init_args.append(getattr(self, name))
 
         for name in self.__init_kwargs__:
+            if name in self.__skip_arg_names:
+                continue
             if name in args:
                 continue
             if name in kwargs:
@@ -80,7 +98,10 @@ class Cloneable(abc.ABC):
             else:
                 init_kwargs[name] = getattr(self, name)
 
-        obj = self.__class__(*init_args, **init_kwargs)  # type: ignore
+        if callable(self.__cloning_operator__):
+            obj = self.__cloning_operator__(self)
+        else:
+            obj = self.__class__(*init_args, **init_kwargs)  # type: ignore
 
         for attr in self.__cloning_attrs__:
             if attr in attrs:
@@ -91,6 +112,16 @@ class Cloneable(abc.ABC):
             setattr(obj, attr, value)
 
         return obj
+
+    @staticmethod
+    def required_cloneable_inheritance(obj: Any):
+        if is_class(obj):
+            mro = obj.__mro__
+        else:
+            mro = obj.__class__.__mro__
+
+        if Cloneable not in mro:
+            raise TypeError("required to inherit Cloneable")
 
 
 def _extend_cloning_attrs(cls):
@@ -119,13 +150,17 @@ def _extend_cloning_args(cls):
     for name, param in sig.parameters.items():
         if name == "self":
             continue
+        if name == "args" and param.kind == param.VAR_POSITIONAL:
+            continue
+        if name == "kwargs" and param.kind == param.VAR_KEYWORD:
+            continue
         if param.kind in [
             param.POSITIONAL_ONLY,
-            param.VAR_POSITIONAL,
             param.POSITIONAL_OR_KEYWORD,
+            param.VAR_POSITIONAL,
         ]:
             init_args.append(name)
-        elif param.kind in [param.VAR_KEYWORD, param.KEYWORD_ONLY]:
+        elif param.kind in [param.KEYWORD_ONLY, param.VAR_KEYWORD]:
             init_kwargs.add(name)
 
     cls.__init_args__ = tuple(init_args)
@@ -135,11 +170,22 @@ def _extend_cloning_args(cls):
 _Valueable_T = TypeVar("_Valueable_T")
 
 
-class Valueable(Cloneable, abc.ABC, Generic[_Valueable_T]):
-    __slots__ = ("__value__",)
-
-    __value__: _Valueable_T
+class Valueable(abc.ABC, Generic[_Valueable_T]):
+    __is_mixin__ = True
+    __allow_mixin_operation__ = True
+    __cloning_attrs__: _CloningAttrsType = frozenset(["__value__", "__value_type__"])
+    __value__: Union[_Valueable_T, UndefinedType] = Undefined
     __value_type__: Union[FrozenSet[Type], EllipsisType, None] = ...
+
+    @staticmethod
+    def required_valueable_inheritance(obj: Any):
+        if is_class(obj):
+            mro = obj.__mro__
+        else:
+            mro = obj.__class__.__mro__
+
+        if Valueable not in mro:
+            raise TypeError("required to inherit Valueable")
 
     def __set_value_type(self):
         if self.__value_type__ is not ...:
@@ -161,24 +207,34 @@ class Valueable(Cloneable, abc.ABC, Generic[_Valueable_T]):
         if type(value) not in cast(frozenset, self.__value_type__):
             raise TypeError(f"bad operand type for bind: {type(value).__name__!r}")
 
+    def _clone(self, **kwargs):
+        Cloneable.required_cloneable_inheritance(self)
+        return super()._clone(**kwargs)  # type: ignore
+
     @property
-    def value(self) -> _Valueable_T:
+    def value(self) -> Union[_Valueable_T, UndefinedType]:
         return self.__value__
 
-    def set_value(self, value: _Valueable_T) -> Self:
-        self.check_value(value)
-        return self._clone(args={"value": value})
+    def set_value(
+        self, value: _Valueable_T, *, validator: Optional[Callable[[Any], None]] = None
+    ) -> Self:
+        if callable(validator):
+            validator(value)
+        else:
+            self.check_value(value)
+
+        return self._clone(attrs={"__value__": value})
 
     def __pos__(self) -> Self:
         if hasattr(self.__value__, "__pos__"):
-            return self._clone(args={"value": +self.__value__})
+            return self._clone(attrs={"__value__": +self.__value__})
         raise TypeError(f"bad operand type for unary +: {type(self.__value__).__name__!r}")
 
     positive = __pos__
 
     def __neg__(self) -> Self:
         if hasattr(self.__value__, "__neg__"):
-            return self._clone(args={"value": -self.__value__})
+            return self._clone(attrs={"__value__": -self.__value__})
         raise TypeError(f"bad operand type for unary -: {type(self.__value__).__name__!r}")
 
     negative = __neg__
@@ -192,7 +248,10 @@ _CompositableClass_T = TypeVar("_CompositableClass_T", bound="Composition")
 
 
 class Compositable(abc.ABC, Generic[_CompositionItemResult_T]):
+    __is_mixin__ = True
+    __allow_mixin_operation__ = True
     __operand__: EnumOperand
+    __cloning_attrs__: _CloningAttrsType = frozenset(["__operand__"])
 
     @property
     def operand(self) -> EnumOperand:
@@ -231,15 +290,13 @@ class Compositable(abc.ABC, Generic[_CompositionItemResult_T]):
 
 
 class CompositableItem(
-    Cloneable,
     Compositable,
     abc.ABC,
     Generic[_CompositionItemResult_T, _CompositableClass_T],
 ):
-    __slots__ = ()
-
     __operand__: EnumOperand = EnumOperand.AND
     __compositable_class__: Type[_CompositableClass_T]
+    __cloning_attrs__: _CloningAttrsType = frozenset(["__operand__", "__compositable_class__"])
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -255,6 +312,10 @@ class CompositableItem(
                     return None
 
         raise TypeError("CompositableItem subclass must be a subclass of Composition")
+
+    def _clone(self, **kwargs):
+        Cloneable.required_cloneable_inheritance(self)
+        return super()._clone(**kwargs)  # type: ignore
 
     def __hash__(self):
         return hash((self.__class__, id(self), self.operand))
@@ -308,13 +369,11 @@ _default_composition_listener = CompositionListener(
 
 
 class Composition(
-    Cloneable,
     Compositable,
     abc.ABC,
     Generic[_CompositionItemResult_T],
 ):
-    __slots__ = ()
-    __cloning_attrs__ = frozenset(["__listener__", "__operand__"])
+    __cloning_attrs__: _CloningAttrsType = frozenset(["__listener__", "__operand__"])
 
     __left__: Compositable
     __right__: Compositable
@@ -336,8 +395,13 @@ class Composition(
     def check_composition_args(cls, left: Compositable, operand: EnumOperand, right: Compositable):
         if not isinstance(left, Compositable) or not isinstance(right, Compositable):
             raise TypeError("Cannot compose non-compositable types")
+        operand = EnumOperand.find_member(operand)
         if not isinstance(operand, EnumOperand):
             raise TypeError("operand must be an instance of EnumOperand")
+
+    def _clone(self, **kwargs):
+        Cloneable.required_cloneable_inheritance(self)
+        return super()._clone(**kwargs)  # type: ignore
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.__left__}, {self.operand}, {self.__right__})"
@@ -402,12 +466,18 @@ class Composition(
         return self.__right__
 
 
-class Pathable(Cloneable, abc.ABC):
-    __cloning_attrs__ = frozenset(["__current__", "__backward__", "__forward__"])
+class Pathable(abc.ABC):
+    __is_mixin__ = True
+    __allow_mixin_operation__ = True
+    __cloning_attrs__: _CloningAttrsType = frozenset(["__current__", "__backward__", "__forward__"])
 
     __current__: Union[Pathable, None] = None
     __backward__: Union[Pathable, None] = None
     __forward__: Union[Pathable, None] = None
+
+    def _clone(self, **kwargs):
+        Cloneable.required_cloneable_inheritance(self)
+        return super()._clone(**kwargs)  # type: ignore
 
     @classmethod
     def create_path(
@@ -417,11 +487,11 @@ class Pathable(Cloneable, abc.ABC):
         forward: Optional[Pathable] = None,
         backward: Optional[Pathable] = None,
     ) -> Self:
-        cls.check_pathable(current)
+        cls.check_pathable(current, "current")
         if not forward:
-            cls.check_pathable(forward)
+            cls.check_pathable(forward, "forward")
         if not backward:
-            cls.check_pathable(backward)
+            cls.check_pathable(backward, "backward")
 
         obj = cls()
         obj.__current__ = current
@@ -429,23 +499,141 @@ class Pathable(Cloneable, abc.ABC):
         obj.__backward__ = backward
         return obj
 
-    @staticmethod
-    def check_pathable(other: Any):
+    @classmethod
+    def check_pathable(cls, other: Any, direction: PathDirectionType) -> Pathable:
         if not isinstance(other, Pathable):
-            raise TypeError("Cannot compose non-pathable types")
+            raise InvalidPathError(f"Cannot compose non-pathable types: {type(other)}({other})")
+        return other
 
     def __rshift__(self, other: Pathable) -> Pathable:
-        self.check_pathable(other)
-        return self._clone(args={"current": self, "forward": other})
+        other = self.check_pathable(other, "forward")
+        current: Pathable
+        backward: Union[Pathable, None]
+        forward: Pathable
 
-    forward_path = __rshift__
+        if self.__forward__:
+            backward = self
+            current = self.__forward__
+            forward = other
+        else:
+            backward = self.__backward__
+            current = self
+            forward = other
+
+        result = self._clone(
+            attrs={"__current__": current, "__backward__": backward, "__forward__": forward}
+        )
+        return result
+
+    set_forward_path = __rshift__
 
     def __lshift__(self, other: Pathable) -> Pathable:
-        self.check_pathable(other)
-        return self._clone(args={"current": self, "backward": other})
+        raise NotImplementedError
 
-    backward_path = __lshift__
+    set_backward_path = __lshift__
 
-    @cached_property
+    @property
     def has_path(self) -> bool:
         return bool(self.__forward__ or self.__backward__)
+
+    @property
+    def current_path(self) -> Union[Pathable, None]:
+        if self.__current__:
+            assert isinstance(self.__current__, Pathable)
+            return self.__current__
+
+        assert self.__current__ is None
+        return self.__current__
+
+    @property
+    def backward_path(self) -> Union[Pathable, None]:
+        if self.__backward__:
+            assert isinstance(self.__backward__, Pathable)
+        else:
+            assert self.__backward__ is None
+        return self.__backward__
+
+    @property
+    def forward_path(self) -> Union[Pathable, None]:
+        if self.__forward__:
+            assert isinstance(self.__forward__, Pathable)
+        else:
+            assert self.__forward__ is None
+        return self.__forward__
+
+
+_Filterable_T = TypeVar("_Filterable_T")
+
+
+class Filterable(abc.ABC, Generic[_Filterable_T]):
+    __is_mixin__ = True
+    __allow_mixin_operation__ = True
+    __cloning_attrs__: _CloningAttrsType = frozenset(["__lookup__"])
+    __lookup__: EnumLookupExpression = EnumLookupExpression.EQUAL
+
+    def _clone(self, **kwargs):
+        Cloneable.required_cloneable_inheritance(self)
+        return super()._clone(**kwargs)  # type: ignore
+
+    @property
+    def value(self):
+        Valueable.required_valueable_inheritance(self)
+        return super().value  # type: ignore
+
+    def __invert__(self) -> Self:
+        if not self.__lookup__.can_negate_expr():
+            raise TypeError(f"Cannot negate {self.__lookup__}")
+        lookup = self.__lookup__ | EnumLookupExpression.NOT
+        return self._clone(attrs={"__lookup__": lookup})
+
+    def not_(self) -> Self:
+        return self.__invert__()
+
+    def exists(self) -> Self:
+        return self._clone(attrs={"__lookup__": EnumLookupExpression.EXISTS})
+
+    def equal(self, other: _Filterable_T) -> Self:
+        return self._clone(attrs={"__lookup__": EnumLookupExpression.EQUAL}).set_value(other)
+
+    def __lt__(self, other: _Filterable_T) -> Self:
+        return self._clone(attrs={"__lookup__": EnumLookupExpression.LT}).set_value(other)
+
+    lt = __lt__
+
+    def __le__(self, other: _Filterable_T) -> Self:
+        return self._clone(attrs={"__lookup__": EnumLookupExpression.LE}).set_value(other)
+
+    le = __le__
+
+    def __gt__(self, other: _Filterable_T) -> Self:
+        return self._clone(attrs={"__lookup__": EnumLookupExpression.GT}).set_value(other)
+
+    gt = __gt__
+
+    def __ge__(self, other: _Filterable_T) -> Self:
+        return self._clone(attrs={"__lookup__": EnumLookupExpression.GE}).set_value(other)
+
+    ge = __ge__
+
+    def like(self, other: _Filterable_T) -> Self:
+        return self._clone(attrs={"__lookup__": EnumLookupExpression.LIKE}).set_value(other)
+
+    def ilike(self, other: _Filterable_T) -> Self:
+        return self._clone(attrs={"__lookup__": EnumLookupExpression.ILIKE}).set_value(other)
+
+    def in_(
+        self, other: Union[_Filterable_T | Union[List[_Filterable_T], Tuple[_Filterable_T, ...]]]
+    ) -> Self:
+        return self._clone(attrs={"__lookup__": EnumLookupExpression.IN}).set_value(
+            other, validator=self.__check_value_for_in_expr
+        )
+
+    def __check_value_for_in_expr(self, value: Any) -> None:
+        Valueable.required_valueable_inheritance(self)
+        assert hasattr(self, "check_value")
+
+        if not hasattr(value, "__iter__"):
+            value = (value,)
+
+        for each in value:
+            self.check_value(each)
