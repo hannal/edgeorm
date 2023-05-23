@@ -83,6 +83,8 @@ class BaseField(BaseFilterable, PythonValueFieldMixin, DbValueFieldMixin):
     _db_link_type = None
     _db_field_type = None
 
+    __allow_mixin_operation__ = False
+
     @classmethod
     def validate(cls, *args, **kwargs):
         return cls(*args, **kwargs)
@@ -166,6 +168,8 @@ class BaseUUIDField(BaseField, PythonValueFieldMixin[uuid.UUID], DbValueFieldMix
 
 
 class BaseLinkField(DbValueFieldMixin, Generic[Link_T, LinkProperty_T]):
+    __allow_mixin_operation__ = False
+
     @property
     def is_single_link(self) -> bool:
         raise NotImplementedError
@@ -219,3 +223,7 @@ class NodeEdgeFieldInfo:
     is_multi_link: bool = dataclasses.field(default=False)
     link_model: Union[Type[BaseNodeModel], None] = dataclasses.field(default=None)
     link_property_model: Union[Type[BaseLinkPropertyModel], None] = dataclasses.field(default=None)
+
+    @property
+    def is_link(self):
+        return self.is_single_link or self.is_multi_link

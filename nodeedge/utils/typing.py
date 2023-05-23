@@ -1,6 +1,8 @@
-from inspect import isclass
+import inspect
+import itertools
+from inspect import isclass, Parameter
 from functools import partial, update_wrapper
-from typing import Any, Type, Union, Tuple
+from typing import Any, Type, Union, Tuple, Dict, Iterable
 
 from pydantic import typing as pydantic_typing
 
@@ -24,6 +26,7 @@ __all__ = [
     "get_all_type_hints",
     "annotate_from",
     "is_subclass",
+    "sort_function_parameters",
 ]
 
 
@@ -62,3 +65,14 @@ def annotate_from(fn):
             ...
     """
     return partial(update_wrapper, wrapped=fn, assigned=("__annotations__",), updated=())
+
+
+def sort_function_parameters(params: Dict[inspect._ParameterKind, Iterable[Parameter]]):
+    param_kind_seq = (
+        Parameter.POSITIONAL_ONLY,
+        Parameter.POSITIONAL_OR_KEYWORD,
+        Parameter.VAR_POSITIONAL,
+        Parameter.KEYWORD_ONLY,
+        Parameter.VAR_KEYWORD,
+    )
+    return itertools.chain.from_iterable([params[kind] for kind in param_kind_seq])
