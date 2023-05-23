@@ -1,6 +1,8 @@
 import enum
 from typing import Any
 
+__all__ = ["JsonableEnum", "FindableEnum"]
+
 
 class JsonableEnum:
     def as_jsonable_value(self) -> Any:

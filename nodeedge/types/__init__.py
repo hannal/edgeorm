@@ -144,7 +144,7 @@ T_EnumClass = TypeVar("T_EnumClass", bound=Type[py_enum.Enum])
 T_TargetEnum = TypeVar("T_TargetEnum", bound=Type)
 
 
-class _BaseEnum(JsonableEnum, FindableEnum, py_enum.Enum):
+class _BaseEnum(FindableEnum, JsonableEnum):
     pass
 
 
@@ -152,7 +152,7 @@ class enum:
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         raise TypeError("enum() is not intended to be instantiated directly.")
 
-    class Flag(py_enum.Flag, _BaseEnum):
+    class Flag(_BaseEnum, py_enum.Flag):
         def __and__(self, other: Any) -> Any:
             return super().__and__(other)
 
@@ -163,7 +163,7 @@ class enum:
 
         __ror__ = __or__
 
-    class IntFlag(py_enum.IntFlag, _BaseEnum):  # type: ignore
+    class IntFlag(_BaseEnum, py_enum.IntFlag):  # type: ignore
         def __and__(self, other: Any) -> Any:
             return super().__and__(other)
 
@@ -174,13 +174,13 @@ class enum:
 
         __ror__ = __or__
 
-    class Enum(_BaseEnum):
+    class Enum(_BaseEnum, py_enum.Enum):
         pass
 
-    class IntEnum(py_enum.IntEnum, _BaseEnum):
+    class IntEnum(_BaseEnum, py_enum.IntEnum):
         pass
 
-    class StrEnum(py_enum.StrEnum, _BaseEnum):
+    class StrEnum(_BaseEnum, py_enum.StrEnum):
         pass
 
     class BaseEnum(_BaseEnum):
