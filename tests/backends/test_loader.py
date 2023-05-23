@@ -9,4 +9,4 @@ def test_backend_loader(global_configuration):
     assert isinstance(backend.field_type_map, FieldTypeMap)
 
     field = fields.Str("hello world")
-    assert field._backend == backend.namespace
+    assert isinstance(field._field_type_map, FieldTypeMap)
