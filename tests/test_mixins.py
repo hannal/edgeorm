@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Union
+from typing import Union, Optional
 from unittest.mock import MagicMock
 
 import pytest
 
-from nodeedge.exceptions import InvalidPathError
+from nodeedge.exceptions import InvalidPathError, NotAllowedCompositionError, NotAllowedPathError
 from nodeedge.model import Model
 from nodeedge.model import fields
-from nodeedge.query import EnumOperand
+from nodeedge.model.fields import Field
+from nodeedge.query import EnumOperand, EnumLookupExpression
 from nodeedge.mixins import (
     Cloneable,
     Valueable,
@@ -17,6 +18,7 @@ from nodeedge.mixins import (
     CompositableItem,
     CompositionListener,
     Pathable,
+    Filterable,
 )
 
 
@@ -173,7 +175,6 @@ def test_complex_composition_map(composition_listener):
 
     class CompositedItem(Composition):
         __listener__ = listener
-        pass
 
     @dataclasses.dataclass(frozen=True)
     class Item(CompositableItem[str, CompositedItem]):
@@ -258,7 +259,7 @@ def test_make_path_for_model_field():
     with pytest.raises(InvalidPathError):
         SampleModel2.link_to >> obj1
 
-    with pytest.raises(InvalidPathError):
+    with pytest.raises(NotAllowedPathError):
         SampleModel2.link_to >> obj1.name
 
     path = SampleModel2.link_to >> SampleModel1.name
@@ -280,3 +281,34 @@ def test_make_path_for_model_field():
     assert path.backward_path == SampleModel3.path_to
     assert path.current_path == SampleModel2.link_to
     assert path.forward_path == SampleModel2.name
+
+
+def test_filterable(composition_listener):
+    listener, *_ = composition_listener
+
+    class SampleModel(Model):
+        name: fields.Str
+
+    class CompositedItem(Composition):
+        __listener__ = listener
+
+    class Filter(Filterable[Field], Valueable, Cloneable, CompositableItem[Field, CompositedItem]):
+        def __init___(self, value, lookup: Optional = None):
+            self.check_value(value)
+            self.__value__ = value
+
+    field1 = SampleModel.name.set_value("hello")
+    field2 = SampleModel.name.set_value("world")
+    filter1 = Filter.create_filter(field1)
+    filter2 = Filter.create_filter(field2)
+    assert filter1.value == field1
+    assert filter2.value == field2
+    assert filter1.filter_lookup == filter2.filter_lookup == EnumLookupExpression.EQUAL
+
+    composited = filter1 & filter2
+    assert composited.left == filter1
+    assert composited.right == filter2
+    assert composited.operand == EnumOperand.AND
+
+    with pytest.raises(NotAllowedCompositionError):
+        filter1 & field2

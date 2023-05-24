@@ -24,7 +24,11 @@ from typing import (
 from typing_extensions import Self, TypeAlias
 
 from nodeedge.constants import Undefined
-from nodeedge.exceptions import InvalidPathError
+from nodeedge.exceptions import (
+    InvalidCompositedTypeError,
+    NotAllowedCompositionError,
+    NotAllowedPathError,
+)
 from nodeedge.query import EnumOperand, EnumLookupExpression
 from nodeedge.types import PathDirectionType, UndefinedType
 from nodeedge.utils.typing import get_origin, is_subclass, is_class
@@ -260,13 +264,13 @@ class Compositable(abc.ABC, Generic[_CompositionItemResult_T]):
     @operand.setter
     def operand(self, value: EnumOperand):
         if not isinstance(value, EnumOperand):
-            raise TypeError("operand must be an instance of EnumOperand")
+            raise InvalidCompositedTypeError("operand must be an instance of EnumOperand")
         self.__operand__ = value
 
     @staticmethod
     def _check_compositable(other: Compositable):
         if not isinstance(other, Compositable):
-            raise TypeError("other must be an instance of Compositable")
+            raise NotAllowedCompositionError("other must be an instance of Compositable")
 
     @abc.abstractmethod
     def __and__(self, other: Compositable):
@@ -502,7 +506,7 @@ class Pathable(abc.ABC):
     @classmethod
     def check_pathable(cls, other: Any, direction: PathDirectionType) -> Pathable:
         if not isinstance(other, Pathable):
-            raise InvalidPathError(f"Cannot compose non-pathable types: {type(other)}({other})")
+            raise NotAllowedPathError(f"Cannot compose non-pathable types: {type(other)}({other})")
         return other
 
     def __rshift__(self, other: Pathable) -> Pathable:
@@ -571,14 +575,28 @@ class Filterable(abc.ABC, Generic[_Filterable_T]):
     __cloning_attrs__: _CloningAttrsType = frozenset(["__lookup__"])
     __lookup__: EnumLookupExpression = EnumLookupExpression.EQUAL
 
+    @classmethod
+    def create_filter(cls, value: _Filterable_T, lookup=EnumLookupExpression.EQUAL) -> Self:
+        obj = cls()
+        obj.__lookup__ = lookup
+        return obj.set_value(value)
+
     def _clone(self, **kwargs):
         Cloneable.required_cloneable_inheritance(self)
         return super()._clone(**kwargs)  # type: ignore
+
+    def set_value(self, value: _Filterable_T):
+        Valueable.required_valueable_inheritance(self)
+        return super().set_value(value)  # type: ignore
 
     @property
     def value(self):
         Valueable.required_valueable_inheritance(self)
         return super().value  # type: ignore
+
+    @property
+    def filter_lookup(self):
+        return self.__lookup__
 
     def __invert__(self) -> Self:
         if not self.__lookup__.can_negate_expr():
